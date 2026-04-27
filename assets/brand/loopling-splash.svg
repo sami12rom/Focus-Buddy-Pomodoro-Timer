@@ -1,0 +1,21 @@
+<svg width="1242" height="2436" viewBox="0 0 1242 2436" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1242" height="2436" fill="#101724"/>
+  <g transform="translate(309 906) scale(0.61)">
+    <use href="#icon"/>
+  </g>
+  <defs>
+    <g id="icon">
+      <rect width="1024" height="1024" rx="244" fill="#101724"/>
+      <rect x="224" y="248" width="104" height="104" rx="22" fill="#28E8EF"/>
+      <rect x="342" y="248" width="104" height="104" rx="22" fill="#22C1FF"/>
+      <rect x="460" y="248" width="104" height="104" rx="22" fill="#20A2FF"/>
+      <rect x="578" y="248" width="104" height="104" rx="22" fill="#20A2FF"/>
+      <rect x="696" y="248" width="104" height="104" rx="22" fill="#28E8EF"/>
+      <rect x="342" y="366" width="104" height="104" rx="22" fill="#21AAFF"/>
+      <rect x="578" y="366" width="104" height="104" rx="22" fill="#21AAFF"/>
+      <rect x="460" y="484" width="104" height="104" rx="22" fill="#208CFF"/>
+      <rect x="460" y="602" width="104" height="104" rx="22" fill="#1E77FF"/>
+      <rect x="460" y="720" width="104" height="104" rx="22" fill="#1D65FF"/>
+    </g>
+  </defs>
+</svg>

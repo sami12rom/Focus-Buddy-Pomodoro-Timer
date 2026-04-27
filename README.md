@@ -106,8 +106,6 @@ npm install
 npx expo start --android
 ```
 
-> **Note:** `rive-react-native` is a listed dependency but the `.riv` asset is not yet included. The app falls back gracefully to the SVG companion if the Rive file is missing. To use Rive, run `npx expo run:android` (development build required — Expo Go is not supported for native modules).
-
 ---
 
 ## Testing

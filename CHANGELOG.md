@@ -13,6 +13,10 @@ This project follows a simple release-notes format:
 
 Use this section for changes that are in progress but not ready to publish yet.
 
+### Future Updates
+
+- Consider adding a Rive-powered interactive companion after a production `.riv` asset and animation state machine are ready.
+
 ## 2026-04-27
 
 ### Added
@@ -33,6 +37,7 @@ Use this section for changes that are in progress but not ready to publish yet.
 - Added current-month focus heatmap in Stats.
 - Added local date helpers for local-calendar streaks, stats, and session history.
 - Added active session duration tracking so timers, recovery, banners, and notifications use one source of truth.
+- Added production app icon, splash, and Play Store listing image assets.
 
 ### Changed
 
@@ -42,6 +47,7 @@ Use this section for changes that are in progress but not ready to publish yet.
 - Updated session history entries to store session tags.
 - Updated reset behavior to include goal preferences.
 - Updated README and architecture documentation for goals, tags, achievements, monthly stats, and privacy policy.
+- Removed the unfinished Rive dependency from the release build until the companion animation asset is ready.
 
 ### Fixed
 
