@@ -17,14 +17,14 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.loopling.app"
+      "bundleIdentifier": "com.techbytestudio.loopling"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#1a1a2e"
       },
-      "package": "com.loopling.app",
+      "package": "com.techbytestudio.loopling",
       "versionCode": 1
     },
     "plugins": [
