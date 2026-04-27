@@ -55,6 +55,7 @@ export default function RootLayout() {
         }}
       />
       <Tabs.Screen name="focus" options={{ href: null }} />
+      <Tabs.Screen name="privacy" options={{ href: null }} />
       <Tabs.Screen name="+not-found" options={{ href: null }} />
     </Tabs>
   );

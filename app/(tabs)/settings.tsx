@@ -1,5 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, StatusBar, Alert } from 'react-native';
+import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../hooks/useTheme';
 import { useThemeStore } from '../../store/themeStore';
 import { useSessionStore } from '../../store/sessionStore';
@@ -9,6 +11,7 @@ import { LONG_BREAK_MINUTES_MIN, LONG_BREAK_MINUTES_MAX } from '../../constants/
 import { resetAllAppData } from '../../utils/resetAppData';
 
 export default function SettingsScreen() {
+  const router = useRouter();
   const t = useTheme();
   const { activeThemeId, setTheme } = useThemeStore();
   const { selectedLongBreakMinutes, setLongBreakMinutes } = useSessionStore();
@@ -163,6 +166,22 @@ export default function SettingsScreen() {
             • No data ever leaves your device
           </Text>
         </View>
+        <View style={[styles.divider, { backgroundColor: t.borderSubtle }]} />
+        <TouchableOpacity
+          style={styles.linkRow}
+          onPress={() => router.push('/privacy')}
+          activeOpacity={0.75}
+          accessibilityLabel="Open privacy policy"
+          accessibilityRole="button"
+        >
+          <View style={styles.linkLeft}>
+            <Text style={[styles.linkLabel, { color: t.textPrimary }]}>Privacy Policy</Text>
+            <Text style={[styles.linkDesc, { color: t.textMuted }]}>
+              View what Loopling stores and how it is used
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={t.textMuted} />
+        </TouchableOpacity>
       </View>
 
       {/* ── Reset ── */}
@@ -340,6 +359,16 @@ const styles = StyleSheet.create({
   // Privacy
   privacyBody: { paddingHorizontal: 16, paddingVertical: 14, gap: 6 },
   privacyLine: { fontSize: 13, lineHeight: 20 },
+  linkRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  linkLeft: { flex: 1, gap: 2 },
+  linkLabel: { fontSize: 15, fontWeight: '600' },
+  linkDesc: { fontSize: 12 },
   // Reset
   resetRow: {
     flexDirection: 'row',
