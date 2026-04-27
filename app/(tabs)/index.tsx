@@ -26,6 +26,7 @@ import RecoveryModal, { RecoveryState } from '../../components/RecoveryModal';
 import { EVOLUTION_STAGE_NAMES } from '../../constants/game';
 import { APP_NAME } from '../../constants/app';
 import { computeElapsedMs } from '../../utils/gameLogic';
+import { getLocalDateKey } from '../../utils/date';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -44,6 +45,7 @@ export default function HomeScreen() {
   const [petMessage, setPetMessage] = useState<string | null>(null);
   const [recoveryState, setRecoveryState] = useState<RecoveryState>(null);
   const [recoveryRewardResult, setRecoveryRewardResult] = useState<FocusRewardResult | null>(null);
+  const [recoveryRewardTask, setRecoveryRewardTask] = useState('');
   const [showRecoveryReward, setShowRecoveryReward] = useState(false);
 
   // Only check recovery once per app launch, after store hydrates
@@ -53,7 +55,7 @@ export default function HomeScreen() {
     useCallback(() => {
       resetTodayIfNewDay();
       // Notification permission is now requested at first session start (focus.tsx)
-      const today = new Date().toISOString().slice(0, 10);
+      const today = getLocalDateKey();
       applyDailyCareCheck(today, lastSessionDate);
     }, [lastSessionDate]) // eslint-disable-line react-hooks/exhaustive-deps
   );
@@ -117,11 +119,12 @@ export default function HomeScreen() {
     const durationMinutes = Math.round(snap.durationMs / 60_000);
     recordCompletedSession(durationMinutes);
     addEntry({
-      date: snap.createdAt.slice(0, 10),
+      date: getLocalDateKey(new Date(snap.createdAt)),
       task: snap.task,
       durationMinutes,
       completedAt: new Date().toISOString(),
     });
+    setRecoveryRewardTask(snap.task);
     setRecoveryRewardResult(result);
     setShowRecoveryReward(true);
   }
@@ -223,8 +226,11 @@ export default function HomeScreen() {
       <RewardModal
         visible={showRecoveryReward}
         result={recoveryRewardResult}
-        task={recoveryRewardResult ? (recoveryState?.snapshot?.task ?? '') : ''}
-        onDismiss={() => setShowRecoveryReward(false)}
+        task={recoveryRewardTask}
+        onDismiss={() => {
+          setShowRecoveryReward(false);
+          setRecoveryRewardTask('');
+        }}
       />
     </ScrollView>
   );

@@ -7,6 +7,7 @@ import {
   isLongBreakDue,
   computeElapsedMs,
 } from '../gameLogic';
+import { addDaysToLocalDateKey, getLocalDateKey } from '../date';
 
 // ── computeNewStreak ──────────────────────────────────────────────────────
 
@@ -105,7 +106,7 @@ describe('getLast7Days', () => {
   });
 
   it('sums minutes for sessions on the same day', () => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalDateKey();
     const entries = [
       { id: '1', date: today, task: '', durationMinutes: 25, completedAt: '' },
       { id: '2', date: today, task: '', durationMinutes: 25, completedAt: '' },
@@ -119,13 +120,25 @@ describe('getLast7Days', () => {
     const oldDate = (() => {
       const d = new Date();
       d.setDate(d.getDate() - 10);
-      return d.toISOString().slice(0, 10);
+      return getLocalDateKey(d);
     })();
     const entries = [
       { id: '1', date: oldDate, task: '', durationMinutes: 25, completedAt: '' },
     ];
     const days = getLast7Days(entries);
     expect(days.every((d) => d.minutes === 0)).toBe(true);
+  });
+});
+
+// ── local date helpers ───────────────────────────────────────────────────
+
+describe('local date helpers', () => {
+  it('formats dates as local YYYY-MM-DD keys', () => {
+    expect(getLocalDateKey(new Date(2026, 0, 5))).toBe('2026-01-05');
+  });
+
+  it('adds days across month boundaries using local calendar dates', () => {
+    expect(addDaysToLocalDateKey('2026-03-01', -1)).toBe('2026-02-28');
   });
 });
 

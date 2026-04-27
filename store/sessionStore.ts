@@ -33,6 +33,7 @@ interface SessionState {
   startTime: number | null;
   pausedAt: number | null;
   totalPausedMs: number;
+  activeDurationMs: number | null;
   breakInteracted: boolean;
 
   // User-chosen durations (persisted)
@@ -56,7 +57,7 @@ interface SessionActions {
   pauseFocus: () => void;
   resumeFocus: () => void;
   // isManual=true skips long-break cycle check (for "Take a Break" button)
-  startBreak: (isManual?: boolean) => void;
+  startBreak: (isManual?: boolean) => number;
   pauseBreak: () => void;
   resumeBreak: () => void;
   interactDuringBreak: () => void;
@@ -80,6 +81,7 @@ const timerInitial = {
   startTime: null,
   pausedAt: null,
   totalPausedMs: 0,
+  activeDurationMs: null,
   breakInteracted: false,
   currentTask: '',
   completedFocusesInCycle: 0,
@@ -104,6 +106,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
           startTime: now,
           pausedAt: null,
           totalPausedMs: 0,
+          activeDurationMs: durationMs,
           activeSessionSnapshot: {
             type: 'focus',
             status: 'running',
@@ -159,6 +162,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
           startTime: now,
           pausedAt: null,
           totalPausedMs: 0,
+          activeDurationMs: durationMs,
           breakInteracted: false,
           isCurrentBreakLong: isLong,
           activeSessionSnapshot: {
@@ -173,6 +177,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
             isLongBreak: isLong,
           },
         });
+        return durationMs;
       },
 
       pauseBreak: () => {
@@ -237,6 +242,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
             startTime: snap.startedAt,
             pausedAt: snap.pausedAt,
             totalPausedMs: snap.totalPausedMs,
+            activeDurationMs: snap.durationMs,
             currentTask: snap.task,
           });
         } else {
@@ -245,6 +251,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
             startTime: snap.startedAt,
             pausedAt: snap.pausedAt,
             totalPausedMs: snap.totalPausedMs,
+            activeDurationMs: snap.durationMs,
             isCurrentBreakLong: snap.isLongBreak,
             breakInteracted: false,
             currentTask: snap.task,

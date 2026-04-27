@@ -1,5 +1,6 @@
 import { FOCUS_SESSIONS_BEFORE_LONG_BREAK, DAILY_HAPPINESS_DECAY, HAPPINESS_MIN } from '../constants/game';
 import type { SessionHistoryEntry } from '../store/sessionHistoryStore';
+import { addDaysToLocalDateKey, getLocalDateKey } from './date';
 
 // ── Streak ────────────────────────────────────────────────────────────────
 
@@ -11,9 +12,7 @@ export function computeNewStreak(
   if (lastSessionDate === null) return 1;
   if (lastSessionDate === today) return currentStreak;
 
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  if (yesterday.toISOString().slice(0, 10) === lastSessionDate) return currentStreak + 1;
+  if (addDaysToLocalDateKey(today, -1) === lastSessionDate) return currentStreak + 1;
 
   return 1;
 }
@@ -27,9 +26,7 @@ export function shouldApplyDecay(
 ): boolean {
   if (lastDecayDate === today) return false;
 
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = yesterday.toISOString().slice(0, 10);
+  const yesterdayStr = addDaysToLocalDateKey(today, -1);
 
   return lastSessionDate !== today && lastSessionDate !== yesterdayStr;
 }
@@ -57,7 +54,7 @@ export function getLast7Days(entries: SessionHistoryEntry[]): DayBar[] {
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    const date = d.toISOString().slice(0, 10);
+    const date = getLocalDateKey(d);
     const label = d.toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 3);
     const minutes = entries
       .filter((e) => e.date === date)

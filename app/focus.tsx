@@ -20,7 +20,7 @@ import { useSettingsStore } from '../store/settingsStore';
 import { useTimer } from '../hooks/useTimer';
 import { useTheme } from '../hooks/useTheme';
 import { getSessionTheme } from '../constants/colors';
-import { FOCUS_SESSIONS_BEFORE_LONG_BREAK } from '../constants/game';
+import { getLocalDateKey } from '../utils/date';
 import TimerDisplay from '../components/TimerDisplay';
 import CompanionView from '../components/CompanionView';
 import CircularTimer from '../components/CircularTimer';
@@ -45,9 +45,9 @@ export default function TimerScreen() {
     startFocus, pauseFocus, resumeFocus,
     startBreak, pauseBreak, resumeBreak,
     interactDuringBreak, breakInteracted,
-    selectedFocusMinutes, selectedBreakMinutes, selectedLongBreakMinutes,
+    selectedFocusMinutes, selectedBreakMinutes,
     setFocusMinutes, setBreakMinutes, setCurrentTask,
-    completedFocusesInCycle, isCurrentBreakLong,
+    isCurrentBreakLong,
     incrementCycle, resetCycle, clearSnapshot,
   } = useSessionStore();
 
@@ -93,18 +93,19 @@ export default function TimerScreen() {
     recordCompletedSession(selectedFocusMinutes);
 
     // Add session history entry
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getLocalDateKey();
     addEntry({
       date: today,
       task: taskInput,
       durationMinutes: selectedFocusMinutes,
       completedAt: new Date().toISOString(),
     });
+    clearSnapshot();
 
     setRewardResult(result);
     setShowReward(true);
   }, [applyFocusReward, recordCompletedSession, addEntry, soundEnabled, hapticsEnabled,
-      selectedFocusMinutes, taskInput, incrementCycle]);
+      selectedFocusMinutes, taskInput, incrementCycle, clearSnapshot]);
 
   const focusTimer = useTimer('focus', handleFocusComplete);
 
@@ -151,9 +152,9 @@ export default function TimerScreen() {
     await requestNotificationPermissions();
     setCurrentTask(taskInput);
     // isManual=true → always short break regardless of cycle count
-    startBreak(true);
+    const breakDurationMs = startBreak(true);
     if (keepAwakeEnabled) activateKeepAwakeAsync();
-    scheduleSessionEndNotification(selectedBreakMinutes * 60_000, 'break');
+    scheduleSessionEndNotification(breakDurationMs, 'break');
   }
 
   // ── Focus running actions ─────────────────────────────────────────────────
@@ -176,11 +177,7 @@ export default function TimerScreen() {
 
   function handleRewardDismiss() {
     setShowReward(false);
-    // Determine break type BEFORE startBreak reads cycle count
-    // (incrementCycle was already called in handleFocusComplete)
-    const isLong = completedFocusesInCycle >= FOCUS_SESSIONS_BEFORE_LONG_BREAK;
-    const breakDurationMs = (isLong ? selectedLongBreakMinutes : selectedBreakMinutes) * 60_000;
-    startBreak(); // reads completedFocusesInCycle internally to set isCurrentBreakLong
+    const breakDurationMs = startBreak();
     if (keepAwakeEnabled) activateKeepAwakeAsync();
     scheduleSessionEndNotification(breakDurationMs, 'break');
   }

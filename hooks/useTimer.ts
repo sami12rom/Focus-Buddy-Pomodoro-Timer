@@ -11,16 +11,31 @@ interface UseTimerReturn {
 export function useTimer(mode: 'focus' | 'break', onComplete: () => void): UseTimerReturn {
   const status = useSessionStore((s) => s.status);
   const startTime = useSessionStore((s) => s.startTime);
+  const pausedAt = useSessionStore((s) => s.pausedAt);
   const totalPausedMs = useSessionStore((s) => s.totalPausedMs);
+  const activeDurationMs = useSessionStore((s) => s.activeDurationMs);
   const selectedFocusMinutes = useSessionStore((s) => s.selectedFocusMinutes);
   const selectedBreakMinutes = useSessionStore((s) => s.selectedBreakMinutes);
   const selectedLongBreakMinutes = useSessionStore((s) => s.selectedLongBreakMinutes);
   const isCurrentBreakLong = useSessionStore((s) => s.isCurrentBreakLong);
 
-  const DURATION =
+  const isRunning =
+    (mode === 'focus' && status === 'running') ||
+    (mode === 'break' && status === 'break_running');
+
+  const isPaused =
+    (mode === 'focus' && status === 'paused') ||
+    (mode === 'break' && status === 'break_paused');
+
+  const fallbackDuration =
     mode === 'focus'
       ? selectedFocusMinutes * 60_000
       : (isCurrentBreakLong ? selectedLongBreakMinutes : selectedBreakMinutes) * 60_000;
+
+  const DURATION =
+    (isRunning || isPaused) && activeDurationMs !== null
+      ? activeDurationMs
+      : fallbackDuration;
 
   const [remainingMs, setRemainingMs] = useState(DURATION);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -30,9 +45,10 @@ export function useTimer(mode: 'focus' | 'break', onComplete: () => void): UseTi
 
   const compute = useCallback((): number => {
     if (!startTime) return DURATION;
-    const elapsed = Date.now() - startTime - totalPausedMs;
+    const now = isPaused ? (pausedAt ?? Date.now()) : Date.now();
+    const elapsed = now - startTime - totalPausedMs;
     return Math.max(0, DURATION - elapsed);
-  }, [startTime, totalPausedMs, DURATION]);
+  }, [startTime, pausedAt, totalPausedMs, isPaused, DURATION]);
 
   const tick = useCallback(() => {
     const remaining = compute();
@@ -46,14 +62,6 @@ export function useTimer(mode: 'focus' | 'break', onComplete: () => void): UseTi
       onCompleteRef.current();
     }
   }, [compute]);
-
-  const isRunning =
-    (mode === 'focus' && status === 'running') ||
-    (mode === 'break' && status === 'break_running');
-
-  const isPaused =
-    (mode === 'focus' && status === 'paused') ||
-    (mode === 'break' && status === 'break_paused');
 
   useEffect(() => {
     if (isRunning) {
@@ -74,7 +82,7 @@ export function useTimer(mode: 'focus' | 'break', onComplete: () => void): UseTi
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRunning, startTime, totalPausedMs, DURATION]);
+  }, [isRunning, startTime, pausedAt, totalPausedMs, DURATION]);
 
   // Re-sync when app comes back to foreground
   useEffect(() => {

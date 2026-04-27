@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { computeNewStreak } from '../utils/gameLogic';
+import { getLocalDateKey } from '../utils/date';
 
 interface StatsState {
   totalSessions: number;
@@ -20,7 +21,7 @@ interface StatsActions {
 }
 
 function todayStr(): string {
-  return new Date().toISOString().slice(0, 10);
+  return getLocalDateKey();
 }
 
 

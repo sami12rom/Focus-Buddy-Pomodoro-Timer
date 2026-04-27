@@ -7,6 +7,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { AppTheme } from '../../constants/colors';
 import SessionBanner from '../../components/SessionBanner';
 import { getLast7Days } from '../../utils/gameLogic';
+import { getLocalDateKey } from '../../utils/date';
 
 const BAR_MAX_HEIGHT = 72;
 const RECENT_SESSION_COUNT = 10;
@@ -26,7 +27,7 @@ export default function StatsScreen() {
   const sevenDays = getLast7Days(entries);
   const maxMinutes = Math.max(...sevenDays.map((d) => d.minutes), 1);
   const recentSessions = entries.slice(0, RECENT_SESSION_COUNT);
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = getLocalDateKey();
 
   return (
     <ScrollView

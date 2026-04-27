@@ -8,8 +8,9 @@ export default function SessionBanner() {
   const router = useRouter();
   const t = useTheme();
   const {
-    status, startTime, pausedAt, totalPausedMs,
-    selectedFocusMinutes, selectedBreakMinutes, currentTask,
+    status, startTime, pausedAt, totalPausedMs, activeDurationMs,
+    selectedFocusMinutes, selectedBreakMinutes, selectedLongBreakMinutes,
+    isCurrentBreakLong, currentTask,
   } = useSessionStore();
 
   const isFocus   = status === 'running'       || status === 'paused';
@@ -18,9 +19,10 @@ export default function SessionBanner() {
   const isPaused  = status === 'paused'        || status === 'break_paused';
   const isActive  = isFocus || isBreak;
 
-  const durationMs = isFocus
+  const fallbackDurationMs = isFocus
     ? selectedFocusMinutes * 60_000
-    : selectedBreakMinutes * 60_000;
+    : (isCurrentBreakLong ? selectedLongBreakMinutes : selectedBreakMinutes) * 60_000;
+  const durationMs = activeDurationMs ?? fallbackDurationMs;
 
   const [remainingMs, setRemainingMs] = useState(durationMs);
 
@@ -38,7 +40,7 @@ export default function SessionBanner() {
     if (!isRunning) return;
     const id = setInterval(tick, 500);
     return () => clearInterval(id);
-  }, [status, startTime, totalPausedMs, pausedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [status, startTime, totalPausedMs, pausedAt, durationMs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isActive) return null;
 

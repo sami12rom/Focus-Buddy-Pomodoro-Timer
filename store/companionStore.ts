@@ -15,6 +15,7 @@ import {
 } from '../constants/game';
 import { getLevelForXP, getEvolutionStage } from '../utils/xp';
 import { shouldApplyDecay, applyDecay, canPetToday } from '../utils/gameLogic';
+import { getLocalDateKey } from '../utils/date';
 
 interface CompanionState {
   name: string;
@@ -110,7 +111,7 @@ export const useCompanionStore = create<CompanionState & CompanionActions>()(
 
       petCompanion: () => {
         const { happiness, lastPetDate } = get();
-        const today = new Date().toISOString().slice(0, 10);
+        const today = getLocalDateKey();
         if (!canPetToday(lastPetDate, today)) {
           return { happinessIncreased: false };
         }
