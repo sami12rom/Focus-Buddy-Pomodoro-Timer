@@ -1,0 +1,161 @@
+import {
+  computeNewStreak,
+  shouldApplyDecay,
+  applyDecay,
+  canPetToday,
+  getLast7Days,
+  isLongBreakDue,
+  computeElapsedMs,
+} from '../gameLogic';
+
+// ── computeNewStreak ──────────────────────────────────────────────────────
+
+describe('computeNewStreak', () => {
+  const TODAY = '2026-04-27';
+  const YESTERDAY = '2026-04-26';
+  const TWO_DAYS_AGO = '2026-04-25';
+
+  it('returns 1 when there is no prior session', () => {
+    expect(computeNewStreak(0, null, TODAY)).toBe(1);
+  });
+
+  it('keeps the streak unchanged when last session was today', () => {
+    expect(computeNewStreak(5, TODAY, TODAY)).toBe(5);
+  });
+
+  it('increments the streak when last session was yesterday', () => {
+    expect(computeNewStreak(3, YESTERDAY, TODAY)).toBe(4);
+  });
+
+  it('resets streak to 1 when last session was two or more days ago', () => {
+    expect(computeNewStreak(7, TWO_DAYS_AGO, TODAY)).toBe(1);
+  });
+});
+
+// ── shouldApplyDecay ──────────────────────────────────────────────────────
+
+describe('shouldApplyDecay', () => {
+  const TODAY = '2026-04-27';
+  const YESTERDAY = '2026-04-26';
+  const TWO_DAYS_AGO = '2026-04-25';
+
+  it('returns false when decay was already applied today', () => {
+    expect(shouldApplyDecay(TODAY, TODAY, null)).toBe(false);
+  });
+
+  it('returns false when the user played today', () => {
+    expect(shouldApplyDecay(TODAY, null, TODAY)).toBe(false);
+  });
+
+  it('returns false when the user played yesterday', () => {
+    expect(shouldApplyDecay(TODAY, null, YESTERDAY)).toBe(false);
+  });
+
+  it('returns true when last session was two or more days ago', () => {
+    expect(shouldApplyDecay(TODAY, null, TWO_DAYS_AGO)).toBe(true);
+  });
+
+  it('returns true when there has never been a session', () => {
+    expect(shouldApplyDecay(TODAY, null, null)).toBe(true);
+  });
+});
+
+// ── applyDecay ────────────────────────────────────────────────────────────
+
+describe('applyDecay', () => {
+  it('reduces happiness by the daily decay amount', () => {
+    // Just verify it decreases — actual constant value tested separately
+    expect(applyDecay(80)).toBeLessThan(80);
+  });
+
+  it('does not drop below the minimum happiness', () => {
+    expect(applyDecay(0)).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ── canPetToday ───────────────────────────────────────────────────────────
+
+describe('canPetToday', () => {
+  const TODAY = '2026-04-27';
+  const YESTERDAY = '2026-04-26';
+
+  it('returns true when lastPetDate is null', () => {
+    expect(canPetToday(null, TODAY)).toBe(true);
+  });
+
+  it('returns true when lastPetDate was a different day', () => {
+    expect(canPetToday(YESTERDAY, TODAY)).toBe(true);
+  });
+
+  it('returns false when the companion was already petted today', () => {
+    expect(canPetToday(TODAY, TODAY)).toBe(false);
+  });
+});
+
+// ── getLast7Days ──────────────────────────────────────────────────────────
+
+describe('getLast7Days', () => {
+  it('returns exactly 7 entries', () => {
+    expect(getLast7Days([])).toHaveLength(7);
+  });
+
+  it('returns 0 minutes for all days when entries is empty', () => {
+    const days = getLast7Days([]);
+    expect(days.every((d) => d.minutes === 0)).toBe(true);
+  });
+
+  it('sums minutes for sessions on the same day', () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const entries = [
+      { id: '1', date: today, task: '', durationMinutes: 25, completedAt: '' },
+      { id: '2', date: today, task: '', durationMinutes: 25, completedAt: '' },
+    ];
+    const days = getLast7Days(entries);
+    const todayBar = days.find((d) => d.date === today);
+    expect(todayBar?.minutes).toBe(50);
+  });
+
+  it('ignores entries older than 7 days', () => {
+    const oldDate = (() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 10);
+      return d.toISOString().slice(0, 10);
+    })();
+    const entries = [
+      { id: '1', date: oldDate, task: '', durationMinutes: 25, completedAt: '' },
+    ];
+    const days = getLast7Days(entries);
+    expect(days.every((d) => d.minutes === 0)).toBe(true);
+  });
+});
+
+// ── isLongBreakDue ────────────────────────────────────────────────────────
+
+describe('isLongBreakDue', () => {
+  it('returns false when fewer than 4 focus sessions completed in cycle', () => {
+    expect(isLongBreakDue(3)).toBe(false);
+  });
+
+  it('returns true when exactly 4 focus sessions completed in cycle', () => {
+    expect(isLongBreakDue(4)).toBe(true);
+  });
+
+  it('returns true when more than 4 focus sessions completed in cycle', () => {
+    expect(isLongBreakDue(6)).toBe(true);
+  });
+});
+
+// ── computeElapsedMs ─────────────────────────────────────────────────────
+
+describe('computeElapsedMs', () => {
+  it('returns elapsed time excluding paused duration', () => {
+    const startedAt = 1000;
+    const totalPausedMs = 200;
+    const now = 1800;
+    expect(computeElapsedMs(startedAt, totalPausedMs, now)).toBe(600);
+  });
+
+  it('returns 0 when called at the exact start time with no pauses', () => {
+    expect(computeElapsedMs(1000, 0, 1000)).toBe(0);
+  });
+});
