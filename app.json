@@ -1,8 +1,8 @@
 {
   "expo": {
     "name": "Loopling",
-    "slug": "pomodoro-tamagotchi",
-    "scheme": "pomodoro-tamagotchi",
+    "slug": "loopling",
+    "scheme": "loopling",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
