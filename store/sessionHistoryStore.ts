@@ -2,11 +2,13 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SESSION_HISTORY_MAX } from '../constants/game';
+import { DEFAULT_SESSION_TAG, SessionTag } from '../constants/sessionTags';
 
 export interface SessionHistoryEntry {
   id: string;
   date: string;            // YYYY-MM-DD
   task: string;
+  tag: SessionTag;
   durationMinutes: number;
   completedAt: string;     // ISO timestamp
 }
@@ -44,9 +46,17 @@ export const useSessionHistoryStore = create<SessionHistoryState & SessionHistor
       migrate: (persisted: unknown, fromVersion: number) => {
         const base = (persisted ?? {}) as Partial<SessionHistoryState>;
         if (fromVersion < 1) {
-          return { entries: Array.isArray(base.entries) ? base.entries : [] };
+          return {
+            entries: Array.isArray(base.entries)
+              ? base.entries.map((entry) => ({ ...entry, tag: entry.tag ?? DEFAULT_SESSION_TAG }))
+              : [],
+          };
         }
-        return base;
+        return {
+          entries: Array.isArray(base.entries)
+            ? base.entries.map((entry) => ({ ...entry, tag: entry.tag ?? DEFAULT_SESSION_TAG }))
+            : [],
+        };
       },
     }
   )

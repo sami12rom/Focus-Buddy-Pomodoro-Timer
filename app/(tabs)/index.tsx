@@ -27,6 +27,8 @@ import { EVOLUTION_STAGE_NAMES } from '../../constants/game';
 import { APP_NAME } from '../../constants/app';
 import { computeElapsedMs } from '../../utils/gameLogic';
 import { getLocalDateKey } from '../../utils/date';
+import { DEFAULT_SESSION_TAG } from '../../constants/sessionTags';
+import { useGoalStore } from '../../store/goalStore';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -36,17 +38,30 @@ export default function HomeScreen() {
     hasCompletedOnboarding, completeOnboarding, petCompanion, applyDailyCareCheck,
     applyFocusReward,
   } = useCompanionStore();
-  const { todaySessions, currentStreak, lastSessionDate, recordCompletedSession } = useStatsStore();
+  const {
+    todaySessions,
+    currentStreak,
+    lastSessionDate,
+    recordCompletedSession,
+    recordLongBreakCompleted,
+  } = useStatsStore();
   const resetTodayIfNewDay = useStatsStore((s) => s.resetTodayIfNewDay);
   const { activeSessionSnapshot, reset: resetSession, resumeFromSnapshot, clearSnapshot } = useSessionStore();
-  const { addEntry } = useSessionHistoryStore();
+  const { entries, addEntry } = useSessionHistoryStore();
   const { hapticsEnabled } = useSettingsStore();
+  const { dailySessionGoal, dailyMinuteGoal } = useGoalStore();
 
   const [petMessage, setPetMessage] = useState<string | null>(null);
   const [recoveryState, setRecoveryState] = useState<RecoveryState>(null);
   const [recoveryRewardResult, setRecoveryRewardResult] = useState<FocusRewardResult | null>(null);
   const [recoveryRewardTask, setRecoveryRewardTask] = useState('');
   const [showRecoveryReward, setShowRecoveryReward] = useState(false);
+  const today = getLocalDateKey();
+  const todayFocusMinutes = entries
+    .filter((entry) => entry.date === today)
+    .reduce((sum, entry) => sum + entry.durationMinutes, 0);
+  const sessionGoalProgress = Math.min(todaySessions / dailySessionGoal, 1);
+  const minuteGoalProgress = Math.min(todayFocusMinutes / dailyMinuteGoal, 1);
 
   // Only check recovery once per app launch, after store hydrates
   const recoveryCheckedRef = useRef(false);
@@ -121,6 +136,7 @@ export default function HomeScreen() {
     addEntry({
       date: getLocalDateKey(new Date(snap.createdAt)),
       task: snap.task,
+      tag: snap.tag ?? DEFAULT_SESSION_TAG,
       durationMinutes,
       completedAt: new Date().toISOString(),
     });
@@ -136,12 +152,20 @@ export default function HomeScreen() {
   }
 
   function handleRecoveryContinue() {
+    const snap = recoveryState?.snapshot;
+    if (snap?.type === 'break' && snap.isLongBreak) {
+      recordLongBreakCompleted();
+    }
     clearSnapshot();
     resetSession();
     setRecoveryState(null);
   }
 
   function handleRecoveryFinish() {
+    const snap = recoveryState?.snapshot;
+    if (snap?.type === 'break' && snap.isLongBreak) {
+      recordLongBreakCompleted();
+    }
     clearSnapshot();
     resetSession();
     setRecoveryState(null);
@@ -202,6 +226,28 @@ export default function HomeScreen() {
         <StatCard icon="🔥" label="Streak" value={`${currentStreak} days`}     color={t.streak} bg={t.surface} labelColor={t.textMuted} />
       </View>
 
+      <View style={[styles.goalCard, { backgroundColor: t.surface }]}>
+        <Text style={[styles.goalTitle, { color: t.textPrimary }]}>Daily Goals</Text>
+        <GoalRow
+          label="Sessions"
+          value={`${todaySessions}/${dailySessionGoal}`}
+          progress={sessionGoalProgress}
+          accent={t.today}
+          muted={t.textMuted}
+          text={t.textSecondary}
+          track={t.surfaceRaised}
+        />
+        <GoalRow
+          label="Focus minutes"
+          value={`${todayFocusMinutes}/${dailyMinuteGoal}m`}
+          progress={minuteGoalProgress}
+          accent={t.focusAccent}
+          muted={t.textMuted}
+          text={t.textSecondary}
+          track={t.surfaceRaised}
+        />
+      </View>
+
       <TouchableOpacity
         style={[styles.startButton, { backgroundColor: t.focusAccent }]}
         onPress={() => router.push('/focus')}
@@ -247,6 +293,30 @@ function StatCard({
       <Text style={styles.statIcon}>{icon}</Text>
       <Text style={[styles.statLabel, { color: labelColor }]}>{label}</Text>
       <Text style={[styles.statValue, { color }]}>{value}</Text>
+    </View>
+  );
+}
+
+function GoalRow({
+  label, value, progress, accent, muted, text, track,
+}: {
+  label: string;
+  value: string;
+  progress: number;
+  accent: string;
+  muted: string;
+  text: string;
+  track: string;
+}) {
+  return (
+    <View style={styles.goalRow}>
+      <View style={styles.goalHeader}>
+        <Text style={[styles.goalLabel, { color: text }]}>{label}</Text>
+        <Text style={[styles.goalValue, { color: muted }]}>{value}</Text>
+      </View>
+      <View style={[styles.goalTrack, { backgroundColor: track }]}>
+        <View style={[styles.goalFill, { width: `${progress * 100}%`, backgroundColor: accent }]} />
+      </View>
     </View>
   );
 }
@@ -336,5 +406,40 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '700',
+  },
+  goalCard: {
+    width: '100%',
+    borderRadius: 16,
+    padding: 16,
+    gap: 12,
+  },
+  goalTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  goalRow: {
+    gap: 6,
+  },
+  goalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  goalLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  goalValue: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  goalTrack: {
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  goalFill: {
+    height: '100%',
+    borderRadius: 4,
   },
 });

@@ -4,6 +4,8 @@ import {
   applyDecay,
   canPetToday,
   getLast7Days,
+  getCurrentMonthDays,
+  getTagTotals,
   isLongBreakDue,
   computeElapsedMs,
 } from '../gameLogic';
@@ -108,8 +110,8 @@ describe('getLast7Days', () => {
   it('sums minutes for sessions on the same day', () => {
     const today = getLocalDateKey();
     const entries = [
-      { id: '1', date: today, task: '', durationMinutes: 25, completedAt: '' },
-      { id: '2', date: today, task: '', durationMinutes: 25, completedAt: '' },
+      { id: '1', date: today, task: '', tag: 'Work' as const, durationMinutes: 25, completedAt: '' },
+      { id: '2', date: today, task: '', tag: 'Study' as const, durationMinutes: 25, completedAt: '' },
     ];
     const days = getLast7Days(entries);
     const todayBar = days.find((d) => d.date === today);
@@ -123,10 +125,29 @@ describe('getLast7Days', () => {
       return getLocalDateKey(d);
     })();
     const entries = [
-      { id: '1', date: oldDate, task: '', durationMinutes: 25, completedAt: '' },
+      { id: '1', date: oldDate, task: '', tag: 'Work' as const, durationMinutes: 25, completedAt: '' },
     ];
     const days = getLast7Days(entries);
     expect(days.every((d) => d.minutes === 0)).toBe(true);
+  });
+});
+
+// ── monthly and tag aggregation ──────────────────────────────────────────
+
+describe('monthly and tag aggregation', () => {
+  it('returns one entry for each day in the current month', () => {
+    const days = getCurrentMonthDays([], new Date(2026, 3, 27));
+    expect(days).toHaveLength(30);
+    expect(days[0].date).toBe('2026-04-01');
+  });
+
+  it('sums minutes by session tag', () => {
+    const entries = [
+      { id: '1', date: '2026-04-27', task: '', tag: 'Work' as const, durationMinutes: 25, completedAt: '' },
+      { id: '2', date: '2026-04-27', task: '', tag: 'Work' as const, durationMinutes: 15, completedAt: '' },
+      { id: '3', date: '2026-04-27', task: '', tag: 'Reading' as const, durationMinutes: 20, completedAt: '' },
+    ];
+    expect(getTagTotals(entries)).toEqual({ Work: 40, Reading: 20 });
   });
 });
 

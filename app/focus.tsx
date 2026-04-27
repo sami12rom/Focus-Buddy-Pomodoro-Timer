@@ -8,6 +8,7 @@ import {
   BackHandler,
   StatusBar,
   KeyboardAvoidingView,
+  ScrollView,
   Platform,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -21,6 +22,7 @@ import { useTimer } from '../hooks/useTimer';
 import { useTheme } from '../hooks/useTheme';
 import { getSessionTheme } from '../constants/colors';
 import { getLocalDateKey } from '../utils/date';
+import { DEFAULT_SESSION_TAG, SESSION_TAGS } from '../constants/sessionTags';
 import TimerDisplay from '../components/TimerDisplay';
 import CompanionView from '../components/CompanionView';
 import CircularTimer from '../components/CircularTimer';
@@ -45,14 +47,14 @@ export default function TimerScreen() {
     startFocus, pauseFocus, resumeFocus,
     startBreak, pauseBreak, resumeBreak,
     interactDuringBreak, breakInteracted,
-    selectedFocusMinutes, selectedBreakMinutes,
-    setFocusMinutes, setBreakMinutes, setCurrentTask,
+    selectedFocusMinutes, selectedBreakMinutes, currentTag,
+    setFocusMinutes, setBreakMinutes, setCurrentTask, setCurrentTag,
     isCurrentBreakLong,
     incrementCycle, resetCycle, clearSnapshot,
   } = useSessionStore();
 
   const { evolutionStage, applyFocusReward, applyBreakInteraction } = useCompanionStore();
-  const { todaySessions, recordCompletedSession } = useStatsStore();
+  const { todaySessions, recordCompletedSession, recordLongBreakCompleted } = useStatsStore();
   const { addEntry } = useSessionHistoryStore();
   const { soundEnabled, hapticsEnabled, keepAwakeEnabled } = useSettingsStore();
 
@@ -97,6 +99,7 @@ export default function TimerScreen() {
     addEntry({
       date: today,
       task: taskInput,
+      tag: currentTag,
       durationMinutes: selectedFocusMinutes,
       completedAt: new Date().toISOString(),
     });
@@ -105,7 +108,7 @@ export default function TimerScreen() {
     setRewardResult(result);
     setShowReward(true);
   }, [applyFocusReward, recordCompletedSession, addEntry, soundEnabled, hapticsEnabled,
-      selectedFocusMinutes, taskInput, incrementCycle, clearSnapshot]);
+      selectedFocusMinutes, taskInput, currentTag, incrementCycle, clearSnapshot]);
 
   const focusTimer = useTimer('focus', handleFocusComplete);
 
@@ -115,11 +118,14 @@ export default function TimerScreen() {
     cancelScheduledNotification();
     if (soundEnabled) fireCompletionAlarm('break');
     if (hapticsEnabled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    if (isCurrentBreakLong) resetCycle();
+    if (isCurrentBreakLong) {
+      recordLongBreakCompleted();
+      resetCycle();
+    }
     setBreakWasSkipped(false);
     setShowBreakEnd(true);
     // reset() is deferred until user makes a choice in BreakEndModal
-  }, [soundEnabled, hapticsEnabled, isCurrentBreakLong, resetCycle]);
+  }, [soundEnabled, hapticsEnabled, isCurrentBreakLong, recordLongBreakCompleted, resetCycle]);
 
   const breakTimer = useTimer('break', handleBreakComplete);
 
@@ -213,6 +219,7 @@ export default function TimerScreen() {
     setShowBreakEnd(false);
     reset();
     setTaskInput('');
+    setCurrentTag(DEFAULT_SESSION_TAG);
     clearSnapshot();
     // Stay on this screen in idle state → user enters next task and starts
   }
@@ -221,6 +228,7 @@ export default function TimerScreen() {
     setShowBreakEnd(false);
     reset();
     setTaskInput('');
+    setCurrentTag(DEFAULT_SESSION_TAG);
     clearSnapshot();
     router.replace('/(tabs)');
   }
@@ -234,87 +242,121 @@ export default function TimerScreen() {
         style={[styles.screen, { backgroundColor: t.focusBg }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <StatusBar barStyle="light-content" backgroundColor={t.focusBg} />
-
-        <TouchableOpacity
-          style={styles.closeBtn}
-          onPress={() => router.back()}
-          hitSlop={12}
-          accessibilityLabel="Close"
-          accessibilityRole="button"
+        <ScrollView
+          style={styles.scrollScreen}
+          contentContainerStyle={styles.setupContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          <Text style={[styles.closeBtnText, { color: t.textMuted }]}>✕</Text>
-        </TouchableOpacity>
+          <StatusBar barStyle="light-content" backgroundColor={t.focusBg} />
 
-        {/* Dual duration pickers — set focus + break time once */}
-        <View style={styles.durationRow}>
-          <View style={styles.durationBlock}>
-            <Text style={[styles.durationLabel, { color: focusSessionTheme.accent }]}>Focus</Text>
-            <View style={styles.pickerRow}>
-              <DrumPicker
-                value={selectedFocusMinutes}
-                min={1}
-                max={120}
-                color={focusSessionTheme.accent}
-                onChange={setFocusMinutes}
-              />
-              <Text style={[styles.pickerUnit, { color: focusSessionTheme.accent }]}>min</Text>
+          <TouchableOpacity
+            style={styles.closeBtn}
+            onPress={() => router.back()}
+            hitSlop={12}
+            accessibilityLabel="Close"
+            accessibilityRole="button"
+          >
+            <Text style={[styles.closeBtnText, { color: t.textMuted }]}>✕</Text>
+          </TouchableOpacity>
+
+          {/* Dual duration pickers — set focus + break time once */}
+          <View style={styles.durationRow}>
+            <View style={styles.durationBlock}>
+              <Text style={[styles.durationLabel, { color: focusSessionTheme.accent }]}>Focus</Text>
+              <View style={styles.pickerRow}>
+                <DrumPicker
+                  value={selectedFocusMinutes}
+                  min={1}
+                  max={120}
+                  color={focusSessionTheme.accent}
+                  onChange={setFocusMinutes}
+                />
+                <Text style={[styles.pickerUnit, { color: focusSessionTheme.accent }]}>min</Text>
+              </View>
+            </View>
+
+            <View style={[styles.durationDivider, { backgroundColor: t.border }]} />
+
+            <View style={styles.durationBlock}>
+              <Text style={[styles.durationLabel, { color: breakSessionTheme.accent }]}>Break</Text>
+              <View style={styles.pickerRow}>
+                <DrumPicker
+                  value={selectedBreakMinutes}
+                  min={1}
+                  max={30}
+                  color={breakSessionTheme.accent}
+                  onChange={setBreakMinutes}
+                />
+                <Text style={[styles.pickerUnit, { color: breakSessionTheme.accent }]}>min</Text>
+              </View>
             </View>
           </View>
 
-          <View style={[styles.durationDivider, { backgroundColor: t.border }]} />
-
-          <View style={styles.durationBlock}>
-            <Text style={[styles.durationLabel, { color: breakSessionTheme.accent }]}>Break</Text>
-            <View style={styles.pickerRow}>
-              <DrumPicker
-                value={selectedBreakMinutes}
-                min={1}
-                max={30}
-                color={breakSessionTheme.accent}
-                onChange={setBreakMinutes}
-              />
-              <Text style={[styles.pickerUnit, { color: breakSessionTheme.accent }]}>min</Text>
-            </View>
+          <View style={[styles.taskRow, { borderBottomColor: focusSessionTheme.accent + '60' }]}>
+            <Text style={[styles.taskHash, { color: focusSessionTheme.accent }]}>#</Text>
+            <TextInput
+              style={[styles.taskInput, { color: t.textPrimary }]}
+              placeholder="What's your focus today?"
+              placeholderTextColor={t.textMuted}
+              value={taskInput}
+              onChangeText={setTaskInput}
+              returnKeyType="done"
+              maxLength={80}
+            />
           </View>
-        </View>
 
-        <View style={[styles.taskRow, { borderBottomColor: focusSessionTheme.accent + '60' }]}>
-          <Text style={[styles.taskHash, { color: focusSessionTheme.accent }]}>#</Text>
-          <TextInput
-            style={[styles.taskInput, { color: t.textPrimary }]}
-            placeholder="What's your focus today?"
-            placeholderTextColor={t.textMuted}
-            value={taskInput}
-            onChangeText={setTaskInput}
-            returnKeyType="done"
-            maxLength={80}
-          />
-        </View>
+          <View style={styles.tagRow}>
+            {SESSION_TAGS.map((tag) => {
+              const active = currentTag === tag;
+              return (
+                <TouchableOpacity
+                  key={tag}
+                  style={[
+                    styles.tagChip,
+                    {
+                      backgroundColor: active ? focusSessionTheme.accent : t.surface,
+                      borderColor: active ? focusSessionTheme.accent : t.border,
+                    },
+                  ]}
+                  onPress={() => setCurrentTag(tag)}
+                  activeOpacity={0.8}
+                  accessibilityLabel={`${tag} session tag`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text style={[styles.tagChipText, { color: active ? '#fff' : t.textSecondary }]}>
+                    {tag}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
-        <Text style={[styles.sessionCount, { color: t.textMuted }]}>
-          Session #{todaySessions + 1}
-        </Text>
+          <Text style={[styles.sessionCount, { color: t.textMuted }]}>
+            Session #{todaySessions + 1}
+          </Text>
 
-        <TouchableOpacity
-          style={[styles.startBtn, { backgroundColor: focusSessionTheme.accent }]}
-          onPress={handleStart}
-          activeOpacity={0.85}
-          accessibilityLabel="Start focus session"
-          accessibilityRole="button"
-        >
-          <Text style={styles.startBtnText}>Start Focus Session</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.startBtn, { backgroundColor: focusSessionTheme.accent }]}
+            onPress={handleStart}
+            activeOpacity={0.85}
+            accessibilityLabel="Start focus session"
+            accessibilityRole="button"
+          >
+            <Text style={styles.startBtnText}>Start Focus Session</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          style={[styles.startBreakBtn, { borderColor: breakSessionTheme.accent }]}
-          onPress={handleStartBreak}
-          activeOpacity={0.85}
-          accessibilityLabel="Take a break"
-          accessibilityRole="button"
-        >
-          <Text style={[styles.startBreakBtnText, { color: breakSessionTheme.accent }]}>Take a Break</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.startBreakBtn, { borderColor: breakSessionTheme.accent }]}
+            onPress={handleStartBreak}
+            activeOpacity={0.85}
+            accessibilityLabel="Take a break"
+            accessibilityRole="button"
+          >
+            <Text style={[styles.startBreakBtnText, { color: breakSessionTheme.accent }]}>Take a Break</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </KeyboardAvoidingView>
     );
   }
@@ -326,7 +368,11 @@ export default function TimerScreen() {
     const totalMs = selectedFocusMinutes * 60_000;
 
     return (
-      <View style={[styles.screen, styles.runningScreen, { backgroundColor: t.focusBg }]}>
+      <ScrollView
+        style={[styles.scrollScreen, { backgroundColor: t.focusBg }]}
+        contentContainerStyle={styles.runningContent}
+        showsVerticalScrollIndicator={false}
+      >
         <StatusBar barStyle="light-content" backgroundColor={t.focusBg} />
 
         {/* Lo-fi study room decor */}
@@ -396,7 +442,7 @@ export default function TimerScreen() {
         )}
 
         <RewardModal visible={showReward} result={rewardResult} task={taskInput} onDismiss={handleRewardDismiss} />
-      </View>
+      </ScrollView>
     );
   }
 
@@ -406,7 +452,11 @@ export default function TimerScreen() {
   const breakLabel = isCurrentBreakLong ? 'Long Break' : 'Short Break';
 
   return (
-    <View style={[styles.screen, styles.runningScreen, { backgroundColor: t.breakBg }]}>
+    <ScrollView
+      style={[styles.scrollScreen, { backgroundColor: t.breakBg }]}
+      contentContainerStyle={styles.runningContent}
+      showsVerticalScrollIndicator={false}
+    >
       <StatusBar barStyle="light-content" backgroundColor={t.breakBg} />
 
       <Text style={[styles.runningLabel, { color: t.textSecondary }]}>{breakLabel}</Text>
@@ -466,21 +516,31 @@ export default function TimerScreen() {
         onStartNextFocus={handleBreakEndContinue}
         onFinishForNow={handleBreakEndFinish}
       />
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+  },
+  scrollScreen: {
+    flex: 1,
+  },
+  setupContent: {
+    flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 56,
-    paddingBottom: 40,
+    paddingBottom: 64,
   },
-  runningScreen: {
+  runningContent: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 56,
+    paddingBottom: 64,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 24,
+    gap: 22,
   },
   closeBtn: {
     position: 'absolute',
@@ -549,6 +609,22 @@ const styles = StyleSheet.create({
   sessionCount: {
     fontSize: 14,
     marginBottom: 24,
+  },
+  tagRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 20,
+  },
+  tagChip: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  tagChipText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   startBtn: {
     borderRadius: 20,

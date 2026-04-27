@@ -12,10 +12,12 @@ interface StatsState {
   bestStreak: number;
   lastSessionDate: string | null;
   lastActiveDate: string | null;
+  longBreaksCompleted: number;
 }
 
 interface StatsActions {
   recordCompletedSession: (durationMinutes: number) => void;
+  recordLongBreakCompleted: () => void;
   resetTodayIfNewDay: () => void;
   resetToDefaults: () => void;
 }
@@ -33,6 +35,7 @@ const initialStats: StatsState = {
   bestStreak: 0,
   lastSessionDate: null,
   lastActiveDate: null,
+  longBreaksCompleted: 0,
 };
 
 export const useStatsStore = create<StatsState & StatsActions>()(
@@ -61,6 +64,9 @@ export const useStatsStore = create<StatsState & StatsActions>()(
 
       resetToDefaults: () => set({ ...initialStats }),
 
+      recordLongBreakCompleted: () =>
+        set((state) => ({ longBreaksCompleted: state.longBreaksCompleted + 1 })),
+
       resetTodayIfNewDay: () => {
         const { lastActiveDate } = get();
         const today = todayStr();
@@ -80,7 +86,7 @@ export const useStatsStore = create<StatsState & StatsActions>()(
         if (fromVersion < 1) {
           return { ...initialStats, ...base };
         }
-        return base;
+        return { ...initialStats, ...base };
       },
     }
   )

@@ -5,6 +5,7 @@ import {
   FOCUS_SESSIONS_BEFORE_LONG_BREAK,
   DEFAULT_LONG_BREAK_MINUTES,
 } from '../constants/game';
+import { DEFAULT_SESSION_TAG, SessionTag } from '../constants/sessionTags';
 
 export type SessionStatus =
   | 'idle'
@@ -23,6 +24,7 @@ export interface ActiveSessionSnapshot {
   totalPausedMs: number;   // accumulated paused time (not including current pause)
   pausedAt: number | null; // wall time when currently paused, or null
   task: string;
+  tag: SessionTag;
   createdAt: string;       // ISO string
   isLongBreak: boolean;
 }
@@ -50,6 +52,7 @@ interface SessionState {
 
   // Current session task label (transient)
   currentTask: string;
+  currentTag: SessionTag;
 }
 
 interface SessionActions {
@@ -68,6 +71,7 @@ interface SessionActions {
   setBreakMinutes: (n: number) => void;
   setLongBreakMinutes: (n: number) => void;
   setCurrentTask: (task: string) => void;
+  setCurrentTag: (tag: SessionTag) => void;
 
   incrementCycle: () => void;
   resetCycle: () => void;
@@ -84,6 +88,7 @@ const timerInitial = {
   activeDurationMs: null,
   breakInteracted: false,
   currentTask: '',
+  currentTag: DEFAULT_SESSION_TAG,
   completedFocusesInCycle: 0,
   isCurrentBreakLong: false,
 };
@@ -98,7 +103,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
       activeSessionSnapshot: null,
 
       startFocus: () => {
-        const { selectedFocusMinutes, currentTask } = get();
+        const { selectedFocusMinutes, currentTask, currentTag } = get();
         const now = Date.now();
         const durationMs = selectedFocusMinutes * 60_000;
         set({
@@ -115,6 +120,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
             totalPausedMs: 0,
             pausedAt: null,
             task: currentTask,
+            tag: currentTag,
             createdAt: new Date().toISOString(),
             isLongBreak: false,
           },
@@ -153,6 +159,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
           selectedBreakMinutes,
           selectedLongBreakMinutes,
           currentTask,
+          currentTag,
         } = get();
         const isLong = !isManual && completedFocusesInCycle >= FOCUS_SESSIONS_BEFORE_LONG_BREAK;
         const durationMs = (isLong ? selectedLongBreakMinutes : selectedBreakMinutes) * 60_000;
@@ -173,6 +180,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
             totalPausedMs: 0,
             pausedAt: null,
             task: currentTask,
+            tag: currentTag,
             createdAt: new Date().toISOString(),
             isLongBreak: isLong,
           },
@@ -216,6 +224,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
       setBreakMinutes: (n) => set({ selectedBreakMinutes: n }),
       setLongBreakMinutes: (n) => set({ selectedLongBreakMinutes: n }),
       setCurrentTask: (task) => set({ currentTask: task }),
+      setCurrentTag: (tag) => set({ currentTag: tag }),
 
       incrementCycle: () =>
         set((s) => ({ completedFocusesInCycle: s.completedFocusesInCycle + 1 })),
@@ -244,6 +253,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
             totalPausedMs: snap.totalPausedMs,
             activeDurationMs: snap.durationMs,
             currentTask: snap.task,
+            currentTag: snap.tag ?? DEFAULT_SESSION_TAG,
           });
         } else {
           set({
@@ -255,6 +265,7 @@ export const useSessionStore = create<SessionState & SessionActions>()(
             isCurrentBreakLong: snap.isLongBreak,
             breakInteracted: false,
             currentTask: snap.task,
+            currentTag: snap.tag ?? DEFAULT_SESSION_TAG,
           });
         }
       },

@@ -26,8 +26,9 @@ app/
   focus.tsx            — Full-screen timer (focus + break), all session phases
   (tabs)/
     index.tsx          — Home: companion, XP bar, stats row, recovery modal
-    stats.tsx          — Stats: summary, 7-day bar chart, recent sessions list
+    stats.tsx          — Stats: summary, goals, 7-day chart, month heatmap, tags, achievements
     settings.tsx       — Settings: themes, toggles, long break, privacy, reset
+  privacy.tsx          — In-app privacy policy
 
 components/
   CompanionView.tsx    — SVG companion renderer (5 evolution stages)
@@ -44,11 +45,12 @@ components/
 
 store/
   companionStore.ts    — Companion name, level, XP, happiness, evolution stage, onboarding flag
-  statsStore.ts        — Session count, streak, total focus minutes, today counter
+  statsStore.ts        — Session count, streak, total focus minutes, today counter, long breaks
   sessionStore.ts      — Timer state, session durations, cycle counter, active snapshot
-  sessionHistoryStore.ts — Last 100 completed focus sessions (date, task, duration)
+  sessionHistoryStore.ts — Last 100 completed focus sessions (date, task, tag, duration)
   settingsStore.ts     — Sound, haptics, keep-awake toggles
   themeStore.ts        — Active theme ID
+  goalStore.ts         — Daily session/minute goals
 
 constants/
   app.ts               — APP_NAME ("Loopling"), APP_TAGLINE
@@ -62,7 +64,9 @@ hooks/
 utils/
   gameLogic.ts         — Pure game logic functions (streak, decay, 7-day chart, etc.)
   notifications.ts     — Expo notification helpers (schedule, cancel, fire alarm)
-  resetAppData.ts      — Calls resetToDefaults() on all 6 stores
+  resetAppData.ts      — Calls resetToDefaults() on all stores
+  achievements.ts      — Derived achievement milestones
+  date.ts              — Local YYYY-MM-DD helpers
   mood.ts              — Happiness → mood string helper
   xp.ts                — XP → level and evolution stage calculations
   __tests__/
@@ -85,10 +89,11 @@ All 6 Zustand stores persist to AsyncStorage. Every store has `version: 1` with 
 |---|---|---|
 | companionStore | All fields except `isHydrated` | `isHydrated` (set by `onRehydrateStorage`) |
 | statsStore | All fields | — |
-| sessionStore | `selectedFocusMinutes`, `selectedBreakMinutes`, `selectedLongBreakMinutes`, `activeSessionSnapshot` | Timer state (`status`, `startTime`, etc.), `completedFocusesInCycle`, `isCurrentBreakLong` |
-| sessionHistoryStore | `entries[]` (max 100) | — |
+| sessionStore | `selectedFocusMinutes`, `selectedBreakMinutes`, `selectedLongBreakMinutes`, `activeSessionSnapshot` | Timer state (`status`, `startTime`, etc.), `activeDurationMs`, `currentTask`, `currentTag`, `completedFocusesInCycle`, `isCurrentBreakLong` |
+| sessionHistoryStore | `entries[]` with task/tag/duration (max 100) | — |
 | settingsStore | All fields | — |
 | themeStore | `activeThemeId` | — |
+| goalStore | `dailySessionGoal`, `dailyMinuteGoal` | — |
 
 ### Session recovery flow
 

@@ -28,6 +28,7 @@ interface CompanionState {
   isHydrated: boolean;
   hasCompletedOnboarding: boolean;
   lastPetDate: string | null;
+  petDates: string[];
   lastDecayDate: string | null;
 }
 
@@ -62,6 +63,7 @@ const initialState: Omit<CompanionState, 'isHydrated'> = {
   createdAt: new Date().toISOString(),
   hasCompletedOnboarding: false,
   lastPetDate: null,
+  petDates: [],
   lastDecayDate: null,
 };
 
@@ -118,6 +120,7 @@ export const useCompanionStore = create<CompanionState & CompanionActions>()(
         set({
           happiness: Math.min(happiness + HAPPINESS_PER_PET, HAPPINESS_MAX),
           lastPetDate: today,
+          petDates: Array.from(new Set([...get().petDates, today])),
         });
         return { happinessIncreased: true };
       },
@@ -144,10 +147,15 @@ export const useCompanionStore = create<CompanionState & CompanionActions>()(
             ...initialState,
             ...base,
             lastPetDate: base.lastPetDate ?? null,
+            petDates: base.petDates ?? (base.lastPetDate ? [base.lastPetDate] : []),
             lastDecayDate: base.lastDecayDate ?? null,
           };
         }
-        return base;
+        return {
+          ...initialState,
+          ...base,
+          petDates: base.petDates ?? (base.lastPetDate ? [base.lastPetDate] : []),
+        };
       },
       onRehydrateStorage: () => (state) => {
         if (state) state.isHydrated = true;

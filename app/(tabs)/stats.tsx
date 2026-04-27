@@ -6,8 +6,10 @@ import { useSessionHistoryStore, SessionHistoryEntry } from '../../store/session
 import { useTheme } from '../../hooks/useTheme';
 import { AppTheme } from '../../constants/colors';
 import SessionBanner from '../../components/SessionBanner';
-import { getLast7Days } from '../../utils/gameLogic';
+import { getCurrentMonthDays, getLast7Days, getTagTotals } from '../../utils/gameLogic';
 import { getLocalDateKey } from '../../utils/date';
+import { useGoalStore } from '../../store/goalStore';
+import { getAchievements, Achievement } from '../../utils/achievements';
 
 const BAR_MAX_HEIGHT = 72;
 const RECENT_SESSION_COUNT = 10;
@@ -16,9 +18,17 @@ const RECENT_SESSION_COUNT = 10;
 
 export default function StatsScreen() {
   const t = useTheme();
-  const { totalSessions, todaySessions, totalFocusMinutes, currentStreak, bestStreak } = useStatsStore();
-  const { level, xp } = useCompanionStore();
+  const {
+    totalSessions,
+    todaySessions,
+    totalFocusMinutes,
+    currentStreak,
+    bestStreak,
+    longBreaksCompleted,
+  } = useStatsStore();
+  const { level, xp, petDates } = useCompanionStore();
   const { entries } = useSessionHistoryStore();
+  const { dailySessionGoal, dailyMinuteGoal } = useGoalStore();
 
   const hours = Math.floor(totalFocusMinutes / 60);
   const mins = totalFocusMinutes % 60;
@@ -28,6 +38,23 @@ export default function StatsScreen() {
   const maxMinutes = Math.max(...sevenDays.map((d) => d.minutes), 1);
   const recentSessions = entries.slice(0, RECENT_SESSION_COUNT);
   const todayStr = getLocalDateKey();
+  const todayFocusMinutes = entries
+    .filter((entry) => entry.date === todayStr)
+    .reduce((sum, entry) => sum + entry.durationMinutes, 0);
+  const sessionGoalProgress = Math.min(todaySessions / dailySessionGoal, 1);
+  const minuteGoalProgress = Math.min(todayFocusMinutes / dailyMinuteGoal, 1);
+  const monthDays = getCurrentMonthDays(entries);
+  const maxMonthMinutes = Math.max(...monthDays.map((d) => d.minutes), 1);
+  const monthLabel = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  const tagTotals = Object.entries(getTagTotals(entries)).sort((a, b) => b[1] - a[1]);
+  const maxTagMinutes = Math.max(...tagTotals.map(([, minutes]) => minutes), 1);
+  const achievements = getAchievements({
+    totalSessions,
+    currentStreak,
+    totalFocusMinutes,
+    longBreaksCompleted,
+    petDays: petDates.length,
+  });
 
   return (
     <ScrollView
@@ -56,6 +83,23 @@ export default function StatsScreen() {
       <Section title="Companion" t={t}>
         <StatRow icon="⭐" label="Level"           value={String(level)} t={t} />
         <StatRow icon="⚡" label="Total XP earned" value={String(xp)}   t={t} />
+      </Section>
+
+      <Section title="Daily Goals" t={t}>
+        <GoalRow
+          label="Sessions"
+          value={`${todaySessions}/${dailySessionGoal}`}
+          progress={sessionGoalProgress}
+          accent={t.today}
+          t={t}
+        />
+        <GoalRow
+          label="Focus minutes"
+          value={`${todayFocusMinutes}/${dailyMinuteGoal}m`}
+          progress={minuteGoalProgress}
+          accent={t.focusAccent}
+          t={t}
+        />
       </Section>
 
       {/* ── Last 7 days bar chart ── */}
@@ -88,6 +132,63 @@ export default function StatsScreen() {
             })}
           </View>
         )}
+      </Section>
+
+      <Section title={monthLabel} t={t}>
+        <View style={styles.weekHeader}>
+          {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+            <Text key={`${day}-${index}`} style={[styles.weekLabel, { color: t.textMuted }]}>
+              {day}
+            </Text>
+          ))}
+        </View>
+        <View style={styles.monthGrid}>
+          {Array.from({ length: new Date(new Date().getFullYear(), new Date().getMonth(), 1).getDay() }).map((_, index) => (
+            <View key={`empty-${index}`} style={styles.monthCell} />
+          ))}
+          {monthDays.map((day) => {
+            const intensity = day.minutes === 0 ? 0 : Math.max(0.25, day.minutes / maxMonthMinutes);
+            const isToday = day.date === todayStr;
+            return (
+              <View
+                key={day.date}
+                style={[
+                  styles.monthCell,
+                  {
+                    backgroundColor: day.minutes > 0 ? t.focusAccent + Math.round(30 + intensity * 120).toString(16).padStart(2, '0') : t.surfaceRaised,
+                    borderColor: isToday ? t.focusAccent : 'transparent',
+                  },
+                ]}
+              >
+                <Text style={[styles.monthDayText, { color: isToday ? t.focusAccent : t.textMuted }]}>
+                  {day.dayOfMonth}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      </Section>
+
+      <Section title="Focus Tags" t={t}>
+        {tagTotals.length === 0 ? (
+          <Text style={[styles.emptyChart, { color: t.textMuted }]}>No tagged sessions yet</Text>
+        ) : (
+          tagTotals.map(([tag, minutes]) => (
+            <TagRow
+              key={tag}
+              tag={tag}
+              minutes={minutes}
+              progress={minutes / maxTagMinutes}
+              t={t}
+            />
+          ))
+        )}
+      </Section>
+
+      <Section title="Achievements" t={t}>
+        {achievements.map((achievement) => (
+          <AchievementRow key={achievement.id} achievement={achievement} t={t} />
+        ))}
       </Section>
 
       {/* ── Recent sessions list ── */}
@@ -138,10 +239,77 @@ function SessionRow({ entry, t }: { entry: SessionHistoryEntry; t: AppTheme }) {
           {entry.task || 'No task'}
         </Text>
         <Text style={[styles.sessionDate, { color: t.textMuted }]}>{dateLabel}</Text>
+        <Text style={[styles.sessionTag, { color: t.focusAccent }]}>{entry.tag ?? 'Work'}</Text>
       </View>
       <Text style={[styles.sessionDuration, { color: t.focusAccent }]}>
         {entry.durationMinutes} min
       </Text>
+    </View>
+  );
+}
+
+function GoalRow({
+  label, value, progress, accent, t,
+}: {
+  label: string;
+  value: string;
+  progress: number;
+  accent: string;
+  t: AppTheme;
+}) {
+  return (
+    <View style={styles.goalRow}>
+      <View style={styles.goalHeader}>
+        <Text style={[styles.goalLabel, { color: t.textSecondary }]}>{label}</Text>
+        <Text style={[styles.goalValue, { color: t.textMuted }]}>{value}</Text>
+      </View>
+      <View style={[styles.goalTrack, { backgroundColor: t.surfaceRaised }]}>
+        <View style={[styles.goalFill, { width: `${progress * 100}%`, backgroundColor: accent }]} />
+      </View>
+    </View>
+  );
+}
+
+function TagRow({
+  tag, minutes, progress, t,
+}: {
+  tag: string;
+  minutes: number;
+  progress: number;
+  t: AppTheme;
+}) {
+  return (
+    <View style={styles.tagRow}>
+      <View style={styles.tagHeader}>
+        <Text style={[styles.tagName, { color: t.textSecondary }]}>{tag}</Text>
+        <Text style={[styles.tagMinutes, { color: t.textMuted }]}>{minutes}m</Text>
+      </View>
+      <View style={[styles.goalTrack, { backgroundColor: t.surfaceRaised }]}>
+        <View style={[styles.goalFill, { width: `${progress * 100}%`, backgroundColor: t.focusAccent }]} />
+      </View>
+    </View>
+  );
+}
+
+function AchievementRow({ achievement, t }: { achievement: Achievement; t: AppTheme }) {
+  const progress = achievement.target === 0 ? 1 : achievement.progress / achievement.target;
+  return (
+    <View style={[styles.achievementRow, { borderBottomColor: t.borderSubtle }]}>
+      <Text style={styles.achievementIcon}>{achievement.icon}</Text>
+      <View style={styles.achievementBody}>
+        <View style={styles.achievementHeader}>
+          <Text style={[styles.achievementTitle, { color: t.textPrimary }]}>{achievement.title}</Text>
+          <Text style={[styles.achievementProgress, { color: achievement.unlocked ? t.xpGold : t.textMuted }]}>
+            {achievement.unlocked ? 'Done' : `${achievement.progress}/${achievement.target}`}
+          </Text>
+        </View>
+        <Text style={[styles.achievementDesc, { color: t.textMuted }]}>{achievement.description}</Text>
+        {!achievement.unlocked && (
+          <View style={[styles.goalTrack, { backgroundColor: t.surfaceRaised }]}>
+            <View style={[styles.goalFill, { width: `${progress * 100}%`, backgroundColor: t.xpGold }]} />
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -175,6 +343,16 @@ const styles = StyleSheet.create({
   rowIcon: { fontSize: 18, width: 28 },
   rowLabel: { flex: 1, fontSize: 15 },
   rowValue: { fontSize: 16, fontWeight: '600' },
+  goalRow: { gap: 6, paddingVertical: 6 },
+  goalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  goalLabel: { fontSize: 14, fontWeight: '600' },
+  goalValue: { fontSize: 13, fontWeight: '700' },
+  goalTrack: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  goalFill: { height: '100%', borderRadius: 4 },
   // 7-day chart
   emptyChart: { fontSize: 14, textAlign: 'center', paddingVertical: 16 },
   chartRow: {
@@ -195,6 +373,70 @@ const styles = StyleSheet.create({
   bar: { width: '70%', borderRadius: 4, minHeight: 4 },
   barMinutes: { fontSize: 9, fontWeight: '600' },
   dayLabel: { fontSize: 11, fontWeight: '600' },
+  // Month heatmap
+  weekHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  weekLabel: {
+    width: '13.2%',
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  monthGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+  },
+  monthCell: {
+    width: '13.2%',
+    aspectRatio: 1,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  monthDayText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  // Tags
+  tagRow: {
+    gap: 6,
+    paddingVertical: 7,
+  },
+  tagHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  tagName: { fontSize: 14, fontWeight: '600' },
+  tagMinutes: { fontSize: 13, fontWeight: '700' },
+  // Achievements
+  achievementRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  achievementIcon: {
+    fontSize: 20,
+    width: 28,
+  },
+  achievementBody: {
+    flex: 1,
+    gap: 5,
+  },
+  achievementHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  achievementTitle: { fontSize: 14, fontWeight: '700' },
+  achievementProgress: { fontSize: 12, fontWeight: '700' },
+  achievementDesc: { fontSize: 12, lineHeight: 16 },
   // Recent sessions
   sessionRow: {
     flexDirection: 'row',
@@ -206,5 +448,6 @@ const styles = StyleSheet.create({
   sessionLeft: { flex: 1, gap: 2 },
   sessionTask: { fontSize: 14, fontWeight: '500' },
   sessionDate: { fontSize: 12 },
+  sessionTag: { fontSize: 11, fontWeight: '700' },
   sessionDuration: { fontSize: 14, fontWeight: '700' },
 });

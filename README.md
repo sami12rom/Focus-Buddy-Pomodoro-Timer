@@ -12,6 +12,10 @@ A gamified Pomodoro timer for Android (iOS later) where a virtual companion evol
 - **Evolving companion** — 5 evolution stages (Egg → Baby → Child → Teen → Adult) driven by XP and level
 - **Automatic Pomodoro loop** — break starts automatically after focus completes; long break triggers after every 4th session
 - **Session history** — last 100 completed sessions stored; 7-day bar chart and recent list in Stats
+- **Daily focus goals** — configurable session and minute targets with progress on Home and Stats
+- **Session tags** — categorize sessions as Work, Study, Reading, Chores, or Deep Work
+- **Achievements** — milestones for first session, streaks, total sessions, focus time, long breaks, and care
+- **Monthly heatmap** — current-month focus calendar for consistency tracking
 - **Companion care** — daily pet interaction, happiness decay if you miss a day, onboarding naming screen
 - **Session recovery** — app-kill mid-session is detected on relaunch with resume / mark-complete options
 - **Session banner** — live countdown visible on Home and Stats while a session runs in the background
@@ -47,7 +51,8 @@ app/
   (tabs)/
     index.tsx          — Home: companion, XP bar, stats, recovery modal
     stats.tsx          — Stats: summary cards, 7-day bar chart, recent sessions
-    settings.tsx       — Settings: themes, toggles, long break duration, reset
+  settings.tsx       — Settings: themes, toggles, long break duration, reset
+  privacy.tsx        — In-app privacy policy
 
 components/
   CompanionView.tsx    — Animated companion (5 evolution stages, SVG)
@@ -69,6 +74,7 @@ store/
   sessionHistoryStore.ts — Last 100 completed focus sessions
   settingsStore.ts       — Sound, haptics, keep-awake toggles
   themeStore.ts          — Active theme ID
+  goalStore.ts           — Daily session/minute goals
 
 constants/
   app.ts    — APP_NAME, APP_TAGLINE
@@ -80,13 +86,15 @@ hooks/
   useTimer.ts — Wall-clock timer (computes from Date.now() − startedAt − pausedMs)
 
 utils/
+  achievements.ts    — Derived achievement milestone definitions
+  date.ts            — Local YYYY-MM-DD helpers
   gameLogic.ts      — Pure functions: streak, decay, 7-day chart data
   xp.ts             — XP → level, evolution stage
   mood.ts           — Happiness → mood string
   notifications.ts  — Schedule/cancel/fire local notifications
   resetAppData.ts   — Calls resetToDefaults() on all stores
   __tests__/
-    gameLogic.test.ts — 23 unit tests
+    gameLogic.test.ts — 27 unit tests
 ```
 
 ---
@@ -108,7 +116,7 @@ npx expo start --android
 npm test
 ```
 
-Runs 23 unit tests covering streak logic, XP/level calculations, happiness decay, and 7-day chart generation.
+Runs unit tests covering streak logic, XP/level calculations, happiness decay, date helpers, monthly aggregation, tag totals, and 7-day chart generation.
 
 ---
 

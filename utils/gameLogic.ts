@@ -1,6 +1,6 @@
 import { FOCUS_SESSIONS_BEFORE_LONG_BREAK, DAILY_HAPPINESS_DECAY, HAPPINESS_MIN } from '../constants/game';
 import type { SessionHistoryEntry } from '../store/sessionHistoryStore';
-import { addDaysToLocalDateKey, getLocalDateKey } from './date';
+import { addDaysToLocalDateKey, getDaysInMonth, getLocalDateKey } from './date';
 
 // ── Streak ────────────────────────────────────────────────────────────────
 
@@ -49,6 +49,12 @@ export interface DayBar {
   minutes: number;
 }
 
+export interface MonthDay {
+  date: string;
+  dayOfMonth: number;
+  minutes: number;
+}
+
 export function getLast7Days(entries: SessionHistoryEntry[]): DayBar[] {
   const days: DayBar[] = [];
   for (let i = 6; i >= 0; i--) {
@@ -62,6 +68,28 @@ export function getLast7Days(entries: SessionHistoryEntry[]): DayBar[] {
     days.push({ label, date, minutes });
   }
   return days;
+}
+
+export function getCurrentMonthDays(entries: SessionHistoryEntry[], now: Date = new Date()): MonthDay[] {
+  const year = now.getFullYear();
+  const monthIndex = now.getMonth();
+  const daysInMonth = getDaysInMonth(year, monthIndex);
+
+  return Array.from({ length: daysInMonth }, (_, i) => {
+    const date = getLocalDateKey(new Date(year, monthIndex, i + 1));
+    const minutes = entries
+      .filter((e) => e.date === date)
+      .reduce((sum, e) => sum + e.durationMinutes, 0);
+    return { date, dayOfMonth: i + 1, minutes };
+  });
+}
+
+export function getTagTotals(entries: SessionHistoryEntry[]): Record<string, number> {
+  return entries.reduce<Record<string, number>>((totals, entry) => {
+    const tag = entry.tag ?? 'Work';
+    totals[tag] = (totals[tag] ?? 0) + entry.durationMinutes;
+    return totals;
+  }, {});
 }
 
 // ── Long break detection ──────────────────────────────────────────────────

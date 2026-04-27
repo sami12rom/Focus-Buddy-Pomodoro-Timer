@@ -11,3 +11,7 @@ export function addDaysToLocalDateKey(dateKey: string, days: number): string {
   date.setDate(date.getDate() + days);
   return getLocalDateKey(date);
 }
+
+export function getDaysInMonth(year: number, monthIndex: number): number {
+  return new Date(year, monthIndex + 1, 0).getDate();
+}

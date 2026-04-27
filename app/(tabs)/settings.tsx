@@ -6,6 +6,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { useThemeStore } from '../../store/themeStore';
 import { useSessionStore } from '../../store/sessionStore';
 import { useSettingsStore } from '../../store/settingsStore';
+import { useGoalStore } from '../../store/goalStore';
 import { THEME_LIST, ThemeId, AppTheme } from '../../constants/colors';
 import { LONG_BREAK_MINUTES_MIN, LONG_BREAK_MINUTES_MAX } from '../../constants/game';
 import { resetAllAppData } from '../../utils/resetAppData';
@@ -17,6 +18,7 @@ export default function SettingsScreen() {
   const { selectedLongBreakMinutes, setLongBreakMinutes } = useSessionStore();
   const { soundEnabled, hapticsEnabled, keepAwakeEnabled,
           setSoundEnabled, setHapticsEnabled, setKeepAwakeEnabled } = useSettingsStore();
+  const { dailySessionGoal, dailyMinuteGoal, setDailySessionGoal, setDailyMinuteGoal } = useGoalStore();
 
   function handleResetData() {
     Alert.alert(
@@ -86,6 +88,31 @@ export default function SettingsScreen() {
           value={keepAwakeEnabled}
           onToggle={setKeepAwakeEnabled}
           accent={t.focusAccent}
+          t={t}
+        />
+      </View>
+
+      {/* ── Daily focus goals ── */}
+      <Text style={[styles.sectionLabel, { color: t.textMuted }]}>Daily Goals</Text>
+
+      <View style={[styles.card, { backgroundColor: t.surface }]}>
+        <GoalStepper
+          label="Sessions"
+          description="Target completed focus sessions per day"
+          value={dailySessionGoal}
+          suffix=""
+          onDecrease={() => setDailySessionGoal(dailySessionGoal - 1)}
+          onIncrease={() => setDailySessionGoal(dailySessionGoal + 1)}
+          t={t}
+        />
+        <View style={[styles.divider, { backgroundColor: t.borderSubtle }]} />
+        <GoalStepper
+          label="Focus minutes"
+          description="Target focused minutes per day"
+          value={dailyMinuteGoal}
+          suffix="m"
+          onDecrease={() => setDailyMinuteGoal(dailyMinuteGoal - 15)}
+          onIncrease={() => setDailyMinuteGoal(dailyMinuteGoal + 15)}
           t={t}
         />
       </View>
@@ -204,6 +231,54 @@ export default function SettingsScreen() {
         </TouchableOpacity>
       </View>
     </ScrollView>
+  );
+}
+
+// ── Goal stepper ─────────────────────────────────────────────────────────
+
+function GoalStepper({
+  label, description, value, suffix, onDecrease, onIncrease, t,
+}: {
+  label: string;
+  description: string;
+  value: number;
+  suffix: string;
+  onDecrease: () => void;
+  onIncrease: () => void;
+  t: AppTheme;
+}) {
+  return (
+    <View style={styles.stepperRow}>
+      <View style={styles.stepperLeft}>
+        <Text style={[styles.stepperLabel, { color: t.textPrimary }]}>{label}</Text>
+        <Text style={[styles.stepperDesc, { color: t.textMuted }]}>{description}</Text>
+      </View>
+      <View style={styles.stepperControls}>
+        <TouchableOpacity
+          style={[styles.stepperBtn, { backgroundColor: t.surfaceRaised }]}
+          onPress={onDecrease}
+          activeOpacity={0.7}
+          hitSlop={8}
+          accessibilityLabel={`Decrease ${label.toLowerCase()} goal`}
+          accessibilityRole="button"
+        >
+          <Text style={[styles.stepperBtnText, { color: t.textPrimary }]}>−</Text>
+        </TouchableOpacity>
+        <Text style={[styles.stepperValue, { color: t.focusAccent }]}>
+          {value}{suffix}
+        </Text>
+        <TouchableOpacity
+          style={[styles.stepperBtn, { backgroundColor: t.surfaceRaised }]}
+          onPress={onIncrease}
+          activeOpacity={0.7}
+          hitSlop={8}
+          accessibilityLabel={`Increase ${label.toLowerCase()} goal`}
+          accessibilityRole="button"
+        >
+          <Text style={[styles.stepperBtnText, { color: t.textPrimary }]}>+</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
