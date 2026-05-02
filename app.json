@@ -24,8 +24,7 @@
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#1a1a2e"
       },
-      "package": "com.techbytestudio.focusbuddy",
-      "versionCode": 1
+      "package": "com.techbytestudio.focusbuddy"
     },
     "plugins": [
       "expo-router",
