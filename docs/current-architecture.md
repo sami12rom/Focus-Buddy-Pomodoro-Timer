@@ -1,4 +1,4 @@
-# Loopling – Current Architecture
+# Focus Buddy – Current Architecture
 
 ## Stack
 
@@ -53,7 +53,7 @@ store/
   goalStore.ts         — Daily session/minute goals
 
 constants/
-  app.ts               — APP_NAME ("Loopling"), APP_TAGLINE
+  app.ts               — APP_NAME ("Focus Buddy"), APP_TAGLINE
   colors.ts            — 4 themes (cosmic, kawaii, ember, retro), AppTheme type
   game.ts              — All numeric game constants (XP, happiness, cycles, limits)
 

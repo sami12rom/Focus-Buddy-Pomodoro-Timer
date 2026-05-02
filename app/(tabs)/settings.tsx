@@ -204,7 +204,7 @@ export default function SettingsScreen() {
           <View style={styles.linkLeft}>
             <Text style={[styles.linkLabel, { color: t.textPrimary }]}>Privacy Policy</Text>
             <Text style={[styles.linkDesc, { color: t.textMuted }]}>
-              View what Loopling stores and how it is used
+              View what Focus Buddy stores and how it is used
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={20} color={t.textMuted} />

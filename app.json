@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Loopling",
-    "slug": "loopling",
-    "scheme": "loopling",
+    "name": "Focus Buddy",
+    "slug": "focus-buddy",
+    "scheme": "focusbuddy",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -17,14 +17,14 @@
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.techbytestudio.loopling"
+      "bundleIdentifier": "com.techbytestudio.focusbuddy"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#1a1a2e"
       },
-      "package": "com.techbytestudio.loopling",
+      "package": "com.techbytestudio.focusbuddy",
       "versionCode": 1
     },
     "plugins": [

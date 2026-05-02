@@ -54,8 +54,8 @@ export async function scheduleSessionEndNotification(
     const title = type === 'focus' ? '🎉 Focus session complete!' : '⏰ Break time is over!';
     const body =
       type === 'focus'
-        ? 'Great work! Your Loopling gained XP. Time for a break.'
-        : 'Your Loopling is ready to focus again!';
+        ? 'Great work! Your buddy gained XP. Time for a break.'
+        : 'Your buddy is ready to focus again!';
 
     const id = await Notifications.scheduleNotificationAsync({
       content: { title, body },
@@ -85,8 +85,8 @@ export async function fireCompletionAlarm(type: 'focus' | 'break'): Promise<void
     const title = type === 'focus' ? '🎉 Focus session complete!' : '⏰ Break time is over!';
     const body =
       type === 'focus'
-        ? 'Great work! Your Loopling gained XP.'
-        : 'Your Loopling is ready to focus again!';
+        ? 'Great work! Your buddy gained XP.'
+        : 'Your buddy is ready to focus again!';
     await Notifications.scheduleNotificationAsync({
       content: { title, body, sound: true },
       trigger: null,

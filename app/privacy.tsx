@@ -32,7 +32,7 @@ export default function PrivacyScreen() {
       <Text style={[styles.updated, { color: t.textMuted }]}>Last updated: {LAST_UPDATED}</Text>
 
       <PolicySection title="Overview">
-        Loopling is designed as a local-first focus timer. Your companion, settings, session
+        Focus Buddy is designed as a local-first focus timer. Your companion, settings, session
         history, streaks, and focus progress are stored on your device.
       </PolicySection>
 
@@ -42,17 +42,17 @@ export default function PrivacyScreen() {
       </PolicySection>
 
       <PolicySection title="Data We Do Not Collect">
-        Loopling does not require an account, does not collect analytics, does not use advertising
+        Focus Buddy does not require an account, does not collect analytics, does not use advertising
         trackers, and does not send your focus data to an external server.
       </PolicySection>
 
       <PolicySection title="Notifications">
-        If you allow notifications, Loopling uses them only to alert you when a focus session or
+        If you allow notifications, Focus Buddy uses them only to alert you when a focus session or
         break ends. You can disable notifications from your device settings.
       </PolicySection>
 
       <PolicySection title="Data Sharing">
-        Loopling does not sell, rent, or share your personal data. Because the app is local-only,
+        Focus Buddy does not sell, rent, or share your personal data. Because the app is local-only,
         your data stays on your device unless you choose to remove or transfer it yourself.
       </PolicySection>
 
@@ -62,7 +62,7 @@ export default function PrivacyScreen() {
       </PolicySection>
 
       <PolicySection title="Changes">
-        This policy may be updated when Loopling adds new features. Material changes should be
+        This policy may be updated when Focus Buddy adds new features. Material changes should be
         reflected in the app and store listing before release.
       </PolicySection>
     </ScrollView>

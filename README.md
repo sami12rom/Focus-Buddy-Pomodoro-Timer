@@ -1,4 +1,4 @@
-# Loopling
+# Focus Buddy
 
 **Focus with a companion that grows with you.**
 

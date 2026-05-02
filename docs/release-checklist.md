@@ -1,4 +1,4 @@
-# Loopling – Release Checklist
+# Focus Buddy – Release Checklist
 
 ## Before Every Release
 
@@ -42,7 +42,7 @@
 - [ ] Splash screen and icon render correctly on target devices
 
 ### App Store / Play Store Metadata
-- [ ] App name: "Loopling"
+- [ ] App name: "Focus Buddy"
 - [ ] Short description updated
 - [ ] Screenshots captured from current build
 - [ ] Public privacy policy URL points to `docs/privacy-policy.md` in the public GitHub repository

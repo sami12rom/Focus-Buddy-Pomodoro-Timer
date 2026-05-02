@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Loopling are documented here.
+All notable changes to Focus Buddy are documented here.
 
 This project follows a simple release-notes format:
 
@@ -41,6 +41,7 @@ Use this section for changes that are in progress but not ready to publish yet.
 
 ### Changed
 
+- Updated Android package and iOS bundle identifier to `com.techbytestudio.focusbuddy`.
 - Updated the focus setup screen to support scrolling on smaller devices.
 - Hid the bottom tab bar on the focus route so timer controls stay reachable.
 - Made running focus and break screens scrollable so Pause, Resume, Cancel, and Skip Break remain accessible.
