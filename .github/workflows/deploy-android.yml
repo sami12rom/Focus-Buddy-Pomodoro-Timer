@@ -2,8 +2,8 @@ name: Deploy Android to Play Store
 
 on:
   push:
-    branches:
-      - main
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
@@ -30,6 +30,8 @@ jobs:
           token: ${{ secrets.EXPO_TOKEN }}
 
       - name: Build Android (EAS)
+        env:
+          EAS_BUILD_NO_EXPO_GO_WARNING: true
         run: eas build --platform android --profile production --non-interactive
 
       - name: Submit to Play Store (internal track)
