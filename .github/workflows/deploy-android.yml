@@ -20,6 +20,11 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Set version from tag
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          npx json -I -f app.json -e "this.expo.version='${VERSION}'"
+
       - name: Install dependencies
         run: npm ci
 
@@ -29,10 +34,7 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Build Android (EAS)
+      - name: Build & Submit Android (EAS)
         env:
           EAS_BUILD_NO_EXPO_GO_WARNING: true
-        run: eas build --platform android --profile production --non-interactive
-
-      - name: Submit to Play Store (internal track)
-        run: eas submit --platform android --profile production --non-interactive
+        run: eas build --platform android --profile production --non-interactive --auto-submit
