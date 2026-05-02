@@ -42,8 +42,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "94060ade-d1c3-46b3-a336-f4d32e192725"
+        "projectId": "ba62c247-ebe6-46e4-9b5d-7419154a10be"
       }
-    }
+    },
+    "owner": "sami12rom"
   }
 }
