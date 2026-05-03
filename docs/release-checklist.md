@@ -53,4 +53,5 @@
 ## Store Version Bump
 - [ ] Increment `version` in `app.json`
 - [ ] Increment `versionCode` (Android) / `buildNumber` (iOS) in `app.json`
+- [ ] Confirm `eas.json` uses local versioning so the AAB reads `versionCode` from `app.json`
 - [ ] Tag the commit: `git tag vX.Y.Z`
