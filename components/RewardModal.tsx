@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { FocusRewardResult } from '../store/companionStore';
 import { EVOLUTION_STAGE_NAMES } from '../constants/game';
 import { useTheme } from '../hooks/useTheme';
@@ -9,16 +10,17 @@ interface Props {
   result: FocusRewardResult | null;
   task?: string;
   onDismiss: () => void;
+  autoStartCountdown?: number;
 }
 
-export default function RewardModal({ visible, result, task, onDismiss }: Props) {
+export default function RewardModal({ visible, result, task, onDismiss, autoStartCountdown }: Props) {
   const t = useTheme();
   if (!result) return null;
 
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
       <View style={styles.overlay}>
-        <View style={[styles.card, { backgroundColor: t.surface }]}>
+        <Animated.View entering={FadeInDown.duration(400).springify()} style={[styles.card, { backgroundColor: t.surface }]}>
           {result.evolved ? (
             <>
               <Text style={[styles.evolveTitle, { color: t.xpGold }]}>✨ Evolution!</Text>
@@ -46,14 +48,22 @@ export default function RewardModal({ visible, result, task, onDismiss }: Props)
             <RewardRow icon="💛" label="Happiness" value={`+${result.happinessGained}`} color={t.xpGold}      bg={t.surfaceRaised} labelColor={t.textSecondary} />
           </View>
 
+          {autoStartCountdown !== undefined && (
+            <Text style={[styles.countdownHint, { color: t.textMuted }]}>
+              Break starts in {autoStartCountdown}s
+            </Text>
+          )}
+
           <TouchableOpacity
             style={[styles.button, { backgroundColor: t.focusAccent }]}
             onPress={onDismiss}
             activeOpacity={0.8}
           >
-            <Text style={styles.buttonText}>Continue →</Text>
+            <Text style={styles.buttonText}>
+              {autoStartCountdown !== undefined ? 'Start Now' : 'Continue →'}
+            </Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
@@ -130,6 +140,10 @@ const styles = StyleSheet.create({
   rewardValue: {
     fontSize: 18,
     fontWeight: '700',
+  },
+  countdownHint: {
+    fontSize: 13,
+    marginBottom: -8,
   },
   button: {
     borderRadius: 16,

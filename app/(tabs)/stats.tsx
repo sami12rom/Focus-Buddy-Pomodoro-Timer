@@ -1,5 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, StatusBar } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, StyleSheet, ScrollView, StatusBar, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
+import { captureRef } from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
 import { useStatsStore } from '../../store/statsStore';
 import { useCompanionStore } from '../../store/companionStore';
 import { useSessionHistoryStore, SessionHistoryEntry } from '../../store/sessionHistoryStore';
@@ -8,16 +10,24 @@ import { AppTheme } from '../../constants/colors';
 import SessionBanner from '../../components/SessionBanner';
 import { getCurrentMonthDays, getLast7Days, getTagTotals } from '../../utils/gameLogic';
 import { getLocalDateKey } from '../../utils/date';
+import { getTodayFocusMinutes, goalProgress } from '../../utils/sessionStats';
 import { useGoalStore } from '../../store/goalStore';
 import { getAchievements, Achievement } from '../../utils/achievements';
+import { SESSION_TAGS, SessionTag } from '../../constants/sessionTags';
+import { computeInsights, Insight } from '../../utils/insights';
+import ShareStatsCard from '../../components/ShareStatsCard';
 
 const BAR_MAX_HEIGHT = 72;
-const RECENT_SESSION_COUNT = 10;
+const FILTERED_SESSION_COUNT = 50;
 
 // ── Screen ────────────────────────────────────────────────────────────────
 
 export default function StatsScreen() {
   const t = useTheme();
+  const [selectedTag, setSelectedTag] = useState<SessionTag | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const cardRef = useRef<View>(null);
   const {
     totalSessions,
     todaySessions,
@@ -25,8 +35,9 @@ export default function StatsScreen() {
     currentStreak,
     bestStreak,
     longBreaksCompleted,
+    unlockedAchievements,
   } = useStatsStore();
-  const { level, xp, petDates } = useCompanionStore();
+  const { name, level, xp, evolutionStage, petDates } = useCompanionStore();
   const { entries } = useSessionHistoryStore();
   const { dailySessionGoal, dailyMinuteGoal } = useGoalStore();
 
@@ -36,27 +47,42 @@ export default function StatsScreen() {
 
   const sevenDays = getLast7Days(entries);
   const maxMinutes = Math.max(...sevenDays.map((d) => d.minutes), 1);
-  const recentSessions = entries.slice(0, RECENT_SESSION_COUNT);
+  const filteredSessions = (selectedTag
+    ? entries.filter((e) => e.tag === selectedTag)
+    : entries
+  ).slice(0, FILTERED_SESSION_COUNT);
   const todayStr = getLocalDateKey();
-  const todayFocusMinutes = entries
-    .filter((entry) => entry.date === todayStr)
-    .reduce((sum, entry) => sum + entry.durationMinutes, 0);
-  const sessionGoalProgress = Math.min(todaySessions / dailySessionGoal, 1);
-  const minuteGoalProgress = Math.min(todayFocusMinutes / dailyMinuteGoal, 1);
+  const todayFocusMinutes = getTodayFocusMinutes(entries, todayStr);
+  const sessionGoalProgress = goalProgress(todaySessions, dailySessionGoal);
+  const minuteGoalProgress = goalProgress(todayFocusMinutes, dailyMinuteGoal);
   const monthDays = getCurrentMonthDays(entries);
   const maxMonthMinutes = Math.max(...monthDays.map((d) => d.minutes), 1);
   const monthLabel = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   const tagTotals = Object.entries(getTagTotals(entries)).sort((a, b) => b[1] - a[1]);
   const maxTagMinutes = Math.max(...tagTotals.map(([, minutes]) => minutes), 1);
+  const insights = computeInsights(entries);
   const achievements = getAchievements({
     totalSessions,
     currentStreak,
+    bestStreak,
     totalFocusMinutes,
     longBreaksCompleted,
     petDays: petDates.length,
+    unlockedIds: unlockedAchievements,
   });
 
+  async function handleShare() {
+    setSharing(true);
+    try {
+      const uri = await captureRef(cardRef, { format: 'png', quality: 1, result: 'tmpfile' });
+      await Sharing.shareAsync(uri, { mimeType: 'image/png', dialogTitle: 'Share your Focus Buddy stats' });
+    } catch {}
+    setSharing(false);
+    setShowShareModal(false);
+  }
+
   return (
+    <>
     <ScrollView
       style={[styles.scroll, { backgroundColor: t.bg }]}
       contentContainerStyle={styles.container}
@@ -66,7 +92,18 @@ export default function StatsScreen() {
 
       <SessionBanner />
 
-      <Text style={[styles.title, { color: t.textPrimary }]}>Your Stats</Text>
+      <View style={styles.titleRow}>
+        <Text style={[styles.title, { color: t.textPrimary }]}>Your Stats</Text>
+        <TouchableOpacity
+          style={[styles.shareBtn, { backgroundColor: t.surface }]}
+          onPress={() => setShowShareModal(true)}
+          activeOpacity={0.75}
+          accessibilityLabel="Share your stats"
+          accessibilityRole="button"
+        >
+          <Text style={[styles.shareBtnText, { color: t.focusAccent }]}>Share</Text>
+        </TouchableOpacity>
+      </View>
 
       {/* ── Summary stats ── */}
       <Section title="Focus Sessions" t={t}>
@@ -84,6 +121,14 @@ export default function StatsScreen() {
         <StatRow icon="⭐" label="Level"           value={String(level)} t={t} />
         <StatRow icon="⚡" label="Total XP earned" value={String(xp)}   t={t} />
       </Section>
+
+      {insights.length > 0 && (
+        <Section title="Focus Insights" t={t}>
+          {insights.map((insight) => (
+            <InsightRow key={insight.label} insight={insight} t={t} />
+          ))}
+        </Section>
+      )}
 
       <Section title="Daily Goals" t={t}>
         <GoalRow
@@ -191,15 +236,82 @@ export default function StatsScreen() {
         ))}
       </Section>
 
-      {/* ── Recent sessions list ── */}
-      {recentSessions.length > 0 && (
-        <Section title="Recent Sessions" t={t}>
-          {recentSessions.map((entry) => (
-            <SessionRow key={entry.id} entry={entry} t={t} />
-          ))}
+      {/* ── Session history with tag filter ── */}
+      {entries.length > 0 && (
+        <Section title="Sessions" t={t}>
+          <View style={styles.filterRow}>
+            <TouchableOpacity
+              style={[styles.filterChip, { backgroundColor: selectedTag === null ? t.focusAccent : t.surfaceRaised, borderColor: selectedTag === null ? t.focusAccent : t.border }]}
+              onPress={() => setSelectedTag(null)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.filterChipText, { color: selectedTag === null ? '#fff' : t.textSecondary }]}>All</Text>
+            </TouchableOpacity>
+            {SESSION_TAGS.map((tag) => (
+              <TouchableOpacity
+                key={tag}
+                style={[styles.filterChip, { backgroundColor: selectedTag === tag ? t.focusAccent : t.surfaceRaised, borderColor: selectedTag === tag ? t.focusAccent : t.border }]}
+                onPress={() => setSelectedTag(selectedTag === tag ? null : tag)}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.filterChipText, { color: selectedTag === tag ? '#fff' : t.textSecondary }]}>{tag}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {filteredSessions.length === 0 ? (
+            <Text style={[styles.emptyChart, { color: t.textMuted }]}>No sessions for this tag</Text>
+          ) : (
+            filteredSessions.map((entry) => (
+              <SessionRow key={entry.id} entry={entry} t={t} />
+            ))
+          )}
         </Section>
       )}
     </ScrollView>
+
+    {/* ── Share modal ── */}
+    <Modal visible={showShareModal} transparent animationType="fade" statusBarTranslucent>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalCard, { backgroundColor: t.surface }]}>
+          <Text style={[styles.modalTitle, { color: t.textPrimary }]}>Share your progress</Text>
+
+          {/* Card preview */}
+          <View style={styles.cardPreview}>
+            <ShareStatsCard
+              ref={cardRef}
+              name={name}
+              evolutionStage={evolutionStage}
+              level={level}
+              currentStreak={currentStreak}
+              bestStreak={bestStreak}
+              totalSessions={totalSessions}
+              totalFocusMinutes={totalFocusMinutes}
+            />
+          </View>
+
+          <TouchableOpacity
+            style={[styles.modalShareBtn, { backgroundColor: t.focusAccent }]}
+            onPress={handleShare}
+            activeOpacity={0.85}
+            disabled={sharing}
+          >
+            {sharing
+              ? <ActivityIndicator color="#fff" />
+              : <Text style={styles.modalShareBtnText}>Share Image</Text>
+            }
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.modalCloseBtn, { borderColor: t.border }]}
+            onPress={() => setShowShareModal(false)}
+            activeOpacity={0.75}
+          >
+            <Text style={[styles.modalCloseBtnText, { color: t.textSecondary }]}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+    </>
   );
 }
 
@@ -286,6 +398,19 @@ function TagRow({
       </View>
       <View style={[styles.goalTrack, { backgroundColor: t.surfaceRaised }]}>
         <View style={[styles.goalFill, { width: `${progress * 100}%`, backgroundColor: t.focusAccent }]} />
+      </View>
+    </View>
+  );
+}
+
+function InsightRow({ insight, t }: { insight: Insight; t: AppTheme }) {
+  return (
+    <View style={[styles.insightRow, { borderBottomColor: t.borderSubtle }]}>
+      <Text style={styles.insightIcon}>{insight.icon}</Text>
+      <View style={styles.insightBody}>
+        <Text style={[styles.insightLabel, { color: t.textMuted }]}>{insight.label}</Text>
+        <Text style={[styles.insightValue, { color: t.textPrimary }]}>{insight.value}</Text>
+        <Text style={[styles.insightSub, { color: t.textMuted }]}>{insight.sub}</Text>
       </View>
     </View>
   );
@@ -437,6 +562,36 @@ const styles = StyleSheet.create({
   achievementTitle: { fontSize: 14, fontWeight: '700' },
   achievementProgress: { fontSize: 12, fontWeight: '700' },
   achievementDesc: { fontSize: 12, lineHeight: 16 },
+  // Session filter
+  filterRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 8,
+  },
+  filterChip: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  // Insights
+  insightRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    gap: 12,
+  },
+  insightIcon: { fontSize: 20, width: 28 },
+  insightBody: { flex: 1, gap: 2 },
+  insightLabel: { fontSize: 11, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  insightValue: { fontSize: 16, fontWeight: '700' },
+  insightSub: { fontSize: 12 },
   // Recent sessions
   sessionRow: {
     flexDirection: 'row',
@@ -450,4 +605,64 @@ const styles = StyleSheet.create({
   sessionDate: { fontSize: 12 },
   sessionTag: { fontSize: 11, fontWeight: '700' },
   sessionDuration: { fontSize: 14, fontWeight: '700' },
+  // Share
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  shareBtn: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  shareBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    borderRadius: 24,
+    padding: 24,
+    width: '100%',
+    alignItems: 'center',
+    gap: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  cardPreview: {
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  modalShareBtn: {
+    width: '100%',
+    paddingVertical: 15,
+    borderRadius: 16,
+    alignItems: 'center',
+  },
+  modalShareBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
+  },
+  modalCloseBtn: {
+    width: '100%',
+    paddingVertical: 13,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 1.5,
+  },
+  modalCloseBtnText: {
+    fontWeight: '600',
+    fontSize: 15,
+  },
 });

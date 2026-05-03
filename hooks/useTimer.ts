@@ -84,13 +84,15 @@ export function useTimer(mode: 'focus' | 'break', onComplete: () => void): UseTi
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRunning, startTime, pausedAt, totalPausedMs, DURATION]);
 
-  // Re-sync when app comes back to foreground
+  // Re-sync when app comes back to foreground — stable ref avoids re-registering on every tick change
+  const tickRef = useRef(tick);
+  tickRef.current = tick;
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
-      if (next === 'active') tick();
+      if (next === 'active') tickRef.current();
     });
     return () => sub.remove();
-  }, [tick]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return { remainingMs, isRunning, isPaused };
 }

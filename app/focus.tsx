@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,11 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import * as ScreenOrientation from 'expo-screen-orientation';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useSessionStore } from '../store/sessionStore';
 import { useCompanionStore, FocusRewardResult } from '../store/companionStore';
@@ -19,6 +22,7 @@ import { useStatsStore } from '../store/statsStore';
 import { useSessionHistoryStore } from '../store/sessionHistoryStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { useTimer } from '../hooks/useTimer';
+import { useAmbientSound } from '../hooks/useAmbientSound';
 import { useTheme } from '../hooks/useTheme';
 import { getSessionTheme } from '../constants/colors';
 import { getLocalDateKey } from '../utils/date';
@@ -29,13 +33,16 @@ import CircularTimer from '../components/CircularTimer';
 import DrumPicker from '../components/DrumPicker';
 import RewardModal from '../components/RewardModal';
 import BreakEndModal from '../components/BreakEndModal';
+import BreathingAnimation from '../components/BreathingAnimation';
 import {
   scheduleSessionEndNotification,
   cancelScheduledNotification,
   fireCompletionAlarm,
-  requestNotificationPermissions,
+  fireAchievementNotification,
 } from '../utils/notifications';
+import { getAchievements } from '../utils/achievements';
 import * as Haptics from 'expo-haptics';
+import * as StoreReview from 'expo-store-review';
 
 
 export default function TimerScreen() {
@@ -54,28 +61,43 @@ export default function TimerScreen() {
   } = useSessionStore();
 
   const { evolutionStage, applyFocusReward, applyBreakInteraction } = useCompanionStore();
-  const { todaySessions, recordCompletedSession, recordLongBreakCompleted } = useStatsStore();
+  const { todaySessions, recordCompletedSession, recordLongBreakCompleted, markAchievementsNotified } = useStatsStore();
   const { addEntry } = useSessionHistoryStore();
-  const { soundEnabled, hapticsEnabled, keepAwakeEnabled } = useSettingsStore();
+  const { soundEnabled, hapticsEnabled, keepAwakeEnabled, autoStartBreak } = useSettingsStore();
 
   const [taskInput, setTaskInput] = useState('');
   const [rewardResult, setRewardResult] = useState<FocusRewardResult | null>(null);
   const [showReward, setShowReward] = useState(false);
   const [showBreakEnd, setShowBreakEnd] = useState(false);
   const [breakWasSkipped, setBreakWasSkipped] = useState(false);
+  const [autoStartCountdown, setAutoStartCountdown] = useState<number | undefined>(undefined);
+  const rewardDismissedRef = useRef(false);
+
+  const { width, height } = useWindowDimensions();
+  const isLandscape = width > height;
 
   const focusSessionTheme = getSessionTheme(t, 'focus');
   const breakSessionTheme = getSessionTheme(t, 'break');
+
+  const PRESETS = [
+    { focus: 25, break: 5 },
+    { focus: 45, break: 10 },
+    { focus: 90, break: 20 },
+  ];
 
   const isIdle = status === 'idle';
   const isFocusRunning = status === 'running' || status === 'paused';
   const isBreakRunning = status === 'break_running' || status === 'break_paused';
 
+  useAmbientSound({ isRunning: status === 'running' || status === 'break_running', isBreak: isBreakRunning });
+
   useFocusEffect(
     useCallback(() => {
-      // Only reset when a break is unexpectedly active on this screen.
-      // A running focus session must survive tab navigation.
+      ScreenOrientation.unlockAsync();
       if (isBreakRunning) reset();
+      return () => {
+        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+      };
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
   );
 
@@ -105,10 +127,39 @@ export default function TimerScreen() {
     });
     clearSnapshot();
 
+    // Check for newly unlocked achievements
+    const updatedStats = useStatsStore.getState();
+    const { petDates } = useCompanionStore.getState();
+    const allAchievements = getAchievements({
+      totalSessions: updatedStats.totalSessions,
+      currentStreak: updatedStats.currentStreak,
+      bestStreak: updatedStats.bestStreak,
+      totalFocusMinutes: updatedStats.totalFocusMinutes,
+      longBreaksCompleted: updatedStats.longBreaksCompleted,
+      petDays: petDates.length,
+      unlockedIds: updatedStats.unlockedAchievements,
+    });
+    const newlyUnlocked = allAchievements.filter(
+      (a) => a.unlocked && !updatedStats.unlockedAchievements.includes(a.id)
+    );
+    if (newlyUnlocked.length > 0) {
+      newlyUnlocked.forEach((a) => fireAchievementNotification(a.title, a.description));
+      markAchievementsNotified(newlyUnlocked.map((a) => a.id));
+    }
+
+    // Ask for a review after the 5th session — OS rate-limits subsequent calls automatically
+    if (updatedStats.totalSessions === 5) {
+      StoreReview.isAvailableAsync().then((available) => {
+        if (available) StoreReview.requestReview();
+      });
+    }
+
+    rewardDismissedRef.current = false;
     setRewardResult(result);
     setShowReward(true);
-  }, [applyFocusReward, recordCompletedSession, addEntry, soundEnabled, hapticsEnabled,
-      selectedFocusMinutes, taskInput, currentTag, incrementCycle, clearSnapshot]);
+  }, [applyFocusReward, recordCompletedSession, addEntry, markAchievementsNotified,
+      soundEnabled, hapticsEnabled, selectedFocusMinutes, taskInput, currentTag,
+      incrementCycle, clearSnapshot]);
 
   const focusTimer = useTimer('focus', handleFocusComplete);
 
@@ -145,17 +196,14 @@ export default function TimerScreen() {
   }, [isIdle, isFocusRunning, isBreakRunning]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Setup actions ─────────────────────────────────────────────────────────
-  async function handleStart() {
-    // Ask for notification permission on first session — not on Home mount (item 5)
-    await requestNotificationPermissions();
+  function handleStart() {
     setCurrentTask(taskInput);
     startFocus();
     if (keepAwakeEnabled) activateKeepAwakeAsync();
     scheduleSessionEndNotification(selectedFocusMinutes * 60_000, 'focus');
   }
 
-  async function handleStartBreak() {
-    await requestNotificationPermissions();
+  function handleStartBreak() {
     setCurrentTask(taskInput);
     // isManual=true → always short break regardless of cycle count
     const breakDurationMs = startBreak(true);
@@ -182,11 +230,32 @@ export default function TimerScreen() {
   }
 
   function handleRewardDismiss() {
+    if (rewardDismissedRef.current) return;
+    rewardDismissedRef.current = true;
     setShowReward(false);
+    setAutoStartCountdown(undefined);
     const breakDurationMs = startBreak();
     if (keepAwakeEnabled) activateKeepAwakeAsync();
     scheduleSessionEndNotification(breakDurationMs, 'break');
   }
+
+  // Auto-start break countdown when reward modal is shown
+  useEffect(() => {
+    if (!showReward || !autoStartBreak) return;
+    const DELAY = 5;
+    setAutoStartCountdown(DELAY);
+    let count = DELAY;
+    const interval = setInterval(() => {
+      count -= 1;
+      setAutoStartCountdown(count > 0 ? count : undefined);
+      if (count <= 0) clearInterval(interval);
+    }, 1000);
+    const timer = setTimeout(() => handleRewardDismiss(), DELAY * 1000);
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timer);
+    };
+  }, [showReward]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Break running actions ─────────────────────────────────────────────────
   function handlePauseBreak() {
@@ -237,126 +306,115 @@ export default function TimerScreen() {
   // Render: Setup phase
   // ─────────────────────────────────────────────────────────────────────────
   if (isIdle) {
-    return (
-      <KeyboardAvoidingView
-        style={[styles.screen, { backgroundColor: t.focusBg }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
-          style={styles.scrollScreen}
-          contentContainerStyle={styles.setupContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <StatusBar barStyle="light-content" backgroundColor={t.focusBg} />
+    const pickerBlock = (
+      <>
+        {/* Quick presets */}
+        <View style={styles.presetsRow}>
+          {PRESETS.map((p) => {
+            const isActive = selectedFocusMinutes === p.focus && selectedBreakMinutes === p.break;
+            return (
+              <TouchableOpacity
+                key={`${p.focus}/${p.break}`}
+                style={[styles.presetChip, { backgroundColor: isActive ? focusSessionTheme.accent : t.surface, borderColor: isActive ? focusSessionTheme.accent : t.border }]}
+                onPress={() => { setFocusMinutes(p.focus); setBreakMinutes(p.break); }}
+                activeOpacity={0.8}
+                accessibilityLabel={`${p.focus} minute focus, ${p.break} minute break preset`}
+                accessibilityRole="button"
+              >
+                <Text style={[styles.presetText, { color: isActive ? '#fff' : t.textSecondary }]}>{p.focus}/{p.break}</Text>
+                <Text style={[styles.presetUnit, { color: isActive ? 'rgba(255,255,255,0.7)' : t.textMuted }]}>min</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
 
-          <TouchableOpacity
-            style={styles.closeBtn}
-            onPress={() => router.back()}
-            hitSlop={12}
-            accessibilityLabel="Close"
-            accessibilityRole="button"
-          >
+        {/* Duration pickers */}
+        <View style={styles.durationRow}>
+          <View style={styles.durationBlock}>
+            <Text style={[styles.durationLabel, { color: focusSessionTheme.accent }]}>Focus</Text>
+            <View style={styles.pickerRow}>
+              <DrumPicker value={selectedFocusMinutes} min={1} max={120} color={focusSessionTheme.accent} onChange={setFocusMinutes} />
+              <Text style={[styles.pickerUnit, { color: focusSessionTheme.accent }]}>min</Text>
+            </View>
+          </View>
+          <View style={[styles.durationDivider, { backgroundColor: t.border }]} />
+          <View style={styles.durationBlock}>
+            <Text style={[styles.durationLabel, { color: breakSessionTheme.accent }]}>Break</Text>
+            <View style={styles.pickerRow}>
+              <DrumPicker value={selectedBreakMinutes} min={1} max={30} color={breakSessionTheme.accent} onChange={setBreakMinutes} />
+              <Text style={[styles.pickerUnit, { color: breakSessionTheme.accent }]}>min</Text>
+            </View>
+          </View>
+        </View>
+      </>
+    );
+
+    const inputBlock = (
+      <>
+        <View style={[styles.taskRow, { borderBottomColor: focusSessionTheme.accent + '60' }]}>
+          <Text style={[styles.taskHash, { color: focusSessionTheme.accent }]}>#</Text>
+          <TextInput
+            style={[styles.taskInput, { color: t.textPrimary }]}
+            placeholder="What's your focus today?"
+            placeholderTextColor={t.textMuted}
+            value={taskInput}
+            onChangeText={setTaskInput}
+            returnKeyType="done"
+            maxLength={80}
+          />
+        </View>
+
+        <View style={styles.tagRow}>
+          {SESSION_TAGS.map((tag) => {
+            const active = currentTag === tag;
+            return (
+              <TouchableOpacity
+                key={tag}
+                style={[styles.tagChip, { backgroundColor: active ? focusSessionTheme.accent : t.surface, borderColor: active ? focusSessionTheme.accent : t.border }]}
+                onPress={() => setCurrentTag(tag)}
+                activeOpacity={0.8}
+                accessibilityLabel={`${tag} session tag`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+              >
+                <Text style={[styles.tagChipText, { color: active ? '#fff' : t.textSecondary }]}>{tag}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Text style={[styles.sessionCount, { color: t.textMuted }]}>Session #{todaySessions + 1}</Text>
+
+        <TouchableOpacity style={[styles.startBtn, { backgroundColor: focusSessionTheme.accent }]} onPress={handleStart} activeOpacity={0.85} accessibilityLabel="Start focus session" accessibilityRole="button">
+          <Text style={styles.startBtnText}>Start Focus Session</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={[styles.startBreakBtn, { borderColor: breakSessionTheme.accent }]} onPress={handleStartBreak} activeOpacity={0.85} accessibilityLabel="Take a break" accessibilityRole="button">
+          <Text style={[styles.startBreakBtnText, { color: breakSessionTheme.accent }]}>Take a Break</Text>
+        </TouchableOpacity>
+      </>
+    );
+
+    return (
+      <KeyboardAvoidingView style={[styles.screen, { backgroundColor: t.focusBg }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <Animated.ScrollView entering={FadeIn.duration(350)} style={styles.scrollScreen} contentContainerStyle={isLandscape ? styles.setupContentLandscape : styles.setupContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <StatusBar barStyle="light-content" backgroundColor={t.focusBg} />
+          <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()} hitSlop={12} accessibilityLabel="Close" accessibilityRole="button">
             <Text style={[styles.closeBtnText, { color: t.textMuted }]}>✕</Text>
           </TouchableOpacity>
 
-          {/* Dual duration pickers — set focus + break time once */}
-          <View style={styles.durationRow}>
-            <View style={styles.durationBlock}>
-              <Text style={[styles.durationLabel, { color: focusSessionTheme.accent }]}>Focus</Text>
-              <View style={styles.pickerRow}>
-                <DrumPicker
-                  value={selectedFocusMinutes}
-                  min={1}
-                  max={120}
-                  color={focusSessionTheme.accent}
-                  onChange={setFocusMinutes}
-                />
-                <Text style={[styles.pickerUnit, { color: focusSessionTheme.accent }]}>min</Text>
-              </View>
+          {isLandscape ? (
+            <View style={styles.landscapeSetupColumns}>
+              <View style={styles.landscapeCol}>{pickerBlock}</View>
+              <View style={[styles.landscapeCol, styles.landscapeColRight]}>{inputBlock}</View>
             </View>
-
-            <View style={[styles.durationDivider, { backgroundColor: t.border }]} />
-
-            <View style={styles.durationBlock}>
-              <Text style={[styles.durationLabel, { color: breakSessionTheme.accent }]}>Break</Text>
-              <View style={styles.pickerRow}>
-                <DrumPicker
-                  value={selectedBreakMinutes}
-                  min={1}
-                  max={30}
-                  color={breakSessionTheme.accent}
-                  onChange={setBreakMinutes}
-                />
-                <Text style={[styles.pickerUnit, { color: breakSessionTheme.accent }]}>min</Text>
-              </View>
-            </View>
-          </View>
-
-          <View style={[styles.taskRow, { borderBottomColor: focusSessionTheme.accent + '60' }]}>
-            <Text style={[styles.taskHash, { color: focusSessionTheme.accent }]}>#</Text>
-            <TextInput
-              style={[styles.taskInput, { color: t.textPrimary }]}
-              placeholder="What's your focus today?"
-              placeholderTextColor={t.textMuted}
-              value={taskInput}
-              onChangeText={setTaskInput}
-              returnKeyType="done"
-              maxLength={80}
-            />
-          </View>
-
-          <View style={styles.tagRow}>
-            {SESSION_TAGS.map((tag) => {
-              const active = currentTag === tag;
-              return (
-                <TouchableOpacity
-                  key={tag}
-                  style={[
-                    styles.tagChip,
-                    {
-                      backgroundColor: active ? focusSessionTheme.accent : t.surface,
-                      borderColor: active ? focusSessionTheme.accent : t.border,
-                    },
-                  ]}
-                  onPress={() => setCurrentTag(tag)}
-                  activeOpacity={0.8}
-                  accessibilityLabel={`${tag} session tag`}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
-                >
-                  <Text style={[styles.tagChipText, { color: active ? '#fff' : t.textSecondary }]}>
-                    {tag}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-
-          <Text style={[styles.sessionCount, { color: t.textMuted }]}>
-            Session #{todaySessions + 1}
-          </Text>
-
-          <TouchableOpacity
-            style={[styles.startBtn, { backgroundColor: focusSessionTheme.accent }]}
-            onPress={handleStart}
-            activeOpacity={0.85}
-            accessibilityLabel="Start focus session"
-            accessibilityRole="button"
-          >
-            <Text style={styles.startBtnText}>Start Focus Session</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.startBreakBtn, { borderColor: breakSessionTheme.accent }]}
-            onPress={handleStartBreak}
-            activeOpacity={0.85}
-            accessibilityLabel="Take a break"
-            accessibilityRole="button"
-          >
-            <Text style={[styles.startBreakBtnText, { color: breakSessionTheme.accent }]}>Take a Break</Text>
-          </TouchableOpacity>
-        </ScrollView>
+          ) : (
+            <>
+              {pickerBlock}
+              {inputBlock}
+            </>
+          )}
+        </Animated.ScrollView>
       </KeyboardAvoidingView>
     );
   }
@@ -366,83 +424,71 @@ export default function TimerScreen() {
   // ─────────────────────────────────────────────────────────────────────────
   if (isFocusRunning) {
     const totalMs = selectedFocusMinutes * 60_000;
+    const timerSize = isLandscape ? 140 : 180;
 
     return (
-      <ScrollView
-        style={[styles.scrollScreen, { backgroundColor: t.focusBg }]}
-        contentContainerStyle={styles.runningContent}
-        showsVerticalScrollIndicator={false}
-      >
+      <Animated.ScrollView entering={FadeIn.duration(400)} style={[styles.scrollScreen, { backgroundColor: t.focusBg }]} contentContainerStyle={isLandscape ? styles.runningContentLandscape : styles.runningContent} showsVerticalScrollIndicator={false}>
         <StatusBar barStyle="light-content" backgroundColor={t.focusBg} />
 
-        {/* Lo-fi study room decor */}
-        <Text style={[styles.decor, { top: 72, left: 28 }]}>📚</Text>
-        <Text style={[styles.decor, { top: 96, right: 28 }]}>☕</Text>
-        <Text style={[styles.decor, { bottom: 148, left: 20 }]}>🪴</Text>
-
-        <Text style={[styles.runningLabel, { color: t.textSecondary }]}>Focus Session</Text>
-
-        {taskInput.length > 0 && (
-          <Text style={[styles.taskSubtitle, { color: t.textMuted }]} numberOfLines={1}>
-            {taskInput}
-          </Text>
+        {!isLandscape && (
+          <>
+            <Text style={[styles.decor, { top: 72, left: 28 }]}>📚</Text>
+            <Text style={[styles.decor, { top: 96, right: 28 }]}>☕</Text>
+            <Text style={[styles.decor, { bottom: 148, left: 20 }]}>🪴</Text>
+          </>
         )}
 
-        <CircularTimer
-          remainingMs={focusTimer.remainingMs}
-          totalMs={totalMs}
-          accent={focusSessionTheme.accent}
-          trackColor={t.borderSubtle}
-          glowColor={t.focusAccent + '12'}
-        >
-          <CompanionView
-            evolutionStage={evolutionStage}
-            size={180}
-            isFocusing={focusTimer.isRunning || focusTimer.isPaused}
-            isPaused={focusTimer.isPaused}
-          />
-        </CircularTimer>
-
-        <TimerDisplay remainingMs={focusTimer.remainingMs} />
-
-        {focusTimer.isPaused && <Text style={[styles.pausedText, { color: t.xpGold }]}>Paused</Text>}
-
-        <View style={styles.controls}>
-          <TouchableOpacity
-            style={[styles.controlBtn, { backgroundColor: focusSessionTheme.accent }]}
-            onPress={focusTimer.isRunning ? handlePauseFocus : handleResumeFocus}
-            activeOpacity={0.8}
-            accessibilityLabel={focusTimer.isRunning ? 'Pause focus session' : 'Resume focus session'}
-            accessibilityRole="button"
-          >
-            <Text style={styles.controlBtnText}>
-              {focusTimer.isRunning ? 'Pause' : 'Resume'}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[styles.controlBtn, { backgroundColor: t.surface, borderWidth: 1, borderColor: t.border }]}
-            onPress={handleCancelFocus}
-            activeOpacity={0.8}
-            accessibilityLabel="Cancel focus session"
-            accessibilityRole="button"
-          >
-            <Text style={[styles.controlBtnText, { color: t.textSecondary }]}>Cancel</Text>
-          </TouchableOpacity>
-        </View>
+        {isLandscape ? (
+          <>
+            {/* Landscape: timer left, info + controls right */}
+            <View style={styles.landscapeTimerCol}>
+              <CircularTimer remainingMs={focusTimer.remainingMs} totalMs={totalMs} accent={focusSessionTheme.accent} trackColor={t.borderSubtle} glowColor={t.focusAccent + '12'}>
+                <CompanionView evolutionStage={evolutionStage} size={timerSize} isFocusing={focusTimer.isRunning || focusTimer.isPaused} isPaused={focusTimer.isPaused} />
+              </CircularTimer>
+              <TimerDisplay remainingMs={focusTimer.remainingMs} />
+            </View>
+            <View style={styles.landscapeInfoCol}>
+              <Text style={[styles.runningLabel, { color: t.textSecondary }]}>Focus Session</Text>
+              {taskInput.length > 0 && <Text style={[styles.taskSubtitle, { color: t.textMuted }]} numberOfLines={1}>{taskInput}</Text>}
+              {focusTimer.isPaused && <Text style={[styles.pausedText, { color: t.xpGold }]}>Paused</Text>}
+              <View style={styles.controls}>
+                <TouchableOpacity style={[styles.controlBtn, { backgroundColor: focusSessionTheme.accent }]} onPress={focusTimer.isRunning ? handlePauseFocus : handleResumeFocus} activeOpacity={0.8} accessibilityLabel={focusTimer.isRunning ? 'Pause focus session' : 'Resume focus session'} accessibilityRole="button">
+                  <Text style={styles.controlBtnText}>{focusTimer.isRunning ? 'Pause' : 'Resume'}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={[styles.controlBtn, { backgroundColor: t.surface, borderWidth: 1, borderColor: t.border }]} onPress={handleCancelFocus} activeOpacity={0.8} accessibilityLabel="Cancel focus session" accessibilityRole="button">
+                  <Text style={[styles.controlBtnText, { color: t.textSecondary }]}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </>
+        ) : (
+          <>
+            <Text style={[styles.runningLabel, { color: t.textSecondary }]}>Focus Session</Text>
+            {taskInput.length > 0 && <Text style={[styles.taskSubtitle, { color: t.textMuted }]} numberOfLines={1}>{taskInput}</Text>}
+            <CircularTimer remainingMs={focusTimer.remainingMs} totalMs={totalMs} accent={focusSessionTheme.accent} trackColor={t.borderSubtle} glowColor={t.focusAccent + '12'}>
+              <CompanionView evolutionStage={evolutionStage} size={timerSize} isFocusing={focusTimer.isRunning || focusTimer.isPaused} isPaused={focusTimer.isPaused} />
+            </CircularTimer>
+            <TimerDisplay remainingMs={focusTimer.remainingMs} />
+            {focusTimer.isPaused && <Text style={[styles.pausedText, { color: t.xpGold }]}>Paused</Text>}
+            <View style={styles.controls}>
+              <TouchableOpacity style={[styles.controlBtn, { backgroundColor: focusSessionTheme.accent }]} onPress={focusTimer.isRunning ? handlePauseFocus : handleResumeFocus} activeOpacity={0.8} accessibilityLabel={focusTimer.isRunning ? 'Pause focus session' : 'Resume focus session'} accessibilityRole="button">
+                <Text style={styles.controlBtnText}>{focusTimer.isRunning ? 'Pause' : 'Resume'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.controlBtn, { backgroundColor: t.surface, borderWidth: 1, borderColor: t.border }]} onPress={handleCancelFocus} activeOpacity={0.8} accessibilityLabel="Cancel focus session" accessibilityRole="button">
+                <Text style={[styles.controlBtnText, { color: t.textSecondary }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
 
         {__DEV__ && (
-          <TouchableOpacity
-            style={[styles.devBtn, { backgroundColor: t.surface, borderColor: t.devAccent }]}
-            onPress={handleFocusComplete}
-            activeOpacity={0.8}
-          >
+          <TouchableOpacity style={[styles.devBtn, { backgroundColor: t.surface, borderColor: t.devAccent }]} onPress={handleFocusComplete} activeOpacity={0.8}>
             <Text style={[styles.devBtnText, { color: t.devAccent }]}>⚡ Simulate Complete</Text>
           </TouchableOpacity>
         )}
 
-        <RewardModal visible={showReward} result={rewardResult} task={taskInput} onDismiss={handleRewardDismiss} />
-      </ScrollView>
+        <RewardModal visible={showReward} result={rewardResult} task={taskInput} onDismiss={handleRewardDismiss} autoStartCountdown={autoStartBreak ? autoStartCountdown : undefined} />
+      </Animated.ScrollView>
     );
   }
 
@@ -450,79 +496,73 @@ export default function TimerScreen() {
   // Render: Break running phase
   // ─────────────────────────────────────────────────────────────────────────
   const breakLabel = isCurrentBreakLong ? 'Long Break' : 'Short Break';
+  const petBtn = (
+    <TouchableOpacity
+      style={[styles.petBtn, { backgroundColor: t.xpGold + '33', borderColor: t.xpGold }, breakInteracted && { backgroundColor: breakSessionTheme.accent + '33', borderColor: breakSessionTheme.accent }]}
+      onPress={handlePetCompanion}
+      disabled={breakInteracted}
+      activeOpacity={0.8}
+      accessibilityLabel={breakInteracted ? 'Companion is happy' : 'Pet your companion'}
+      accessibilityRole="button"
+    >
+      <Text style={[styles.petBtnText, { color: t.textPrimary }]}>{breakInteracted ? '💛 Companion is happy!' : '🐾 Pet your companion'}</Text>
+    </TouchableOpacity>
+  );
+
+  const breakControls = (
+    <View style={styles.controls}>
+      <TouchableOpacity style={[styles.controlBtn, { backgroundColor: breakSessionTheme.accent }]} onPress={breakTimer.isRunning ? handlePauseBreak : handleResumeBreak} activeOpacity={0.8} accessibilityLabel={breakTimer.isRunning ? 'Pause break' : 'Resume break'} accessibilityRole="button">
+        <Text style={styles.controlBtnText}>{breakTimer.isRunning ? 'Pause' : 'Resume'}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={[styles.controlBtn, { backgroundColor: t.surface, borderWidth: 1, borderColor: t.border }]} onPress={handleSkipBreak} activeOpacity={0.8} accessibilityLabel="Skip break" accessibilityRole="button">
+        <Text style={[styles.controlBtnText, { color: t.textSecondary }]}>Skip Break</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
-    <ScrollView
-      style={[styles.scrollScreen, { backgroundColor: t.breakBg }]}
-      contentContainerStyle={styles.runningContent}
-      showsVerticalScrollIndicator={false}
-    >
+    <Animated.ScrollView entering={FadeIn.duration(400)} style={[styles.scrollScreen, { backgroundColor: t.breakBg }]} contentContainerStyle={isLandscape ? styles.runningContentLandscape : styles.runningContent} showsVerticalScrollIndicator={false}>
       <StatusBar barStyle="light-content" backgroundColor={t.breakBg} />
 
-      <Text style={[styles.runningLabel, { color: t.textSecondary }]}>{breakLabel}</Text>
-      <Text style={[styles.runningSubLabel, { color: breakSessionTheme.accent }]}>Rest and recharge</Text>
+      {isLandscape ? (
+        <>
+          <View style={styles.landscapeTimerCol}>
+            <CompanionView evolutionStage={evolutionStage} size={120} />
+            <TimerDisplay remainingMs={breakTimer.remainingMs} style={{ color: breakSessionTheme.accent }} />
+          </View>
+          <View style={styles.landscapeInfoCol}>
+            <Text style={[styles.runningLabel, { color: t.textSecondary }]}>{breakLabel}</Text>
+            <BreathingAnimation color={breakSessionTheme.accent} isRunning={breakTimer.isRunning} />
+            <View style={styles.breathingGap} />
+            {breakTimer.isPaused && <Text style={[styles.pausedText, { color: t.xpGold }]}>Paused</Text>}
+            {petBtn}
+            {breakControls}
+          </View>
+        </>
+      ) : (
+        <>
+          <Text style={[styles.runningLabel, { color: t.textSecondary }]}>{breakLabel}</Text>
+          <CompanionView evolutionStage={evolutionStage} size={140} />
+          <BreathingAnimation color={breakSessionTheme.accent} isRunning={breakTimer.isRunning} />
+          <View style={styles.breathingGap} />
+          <TimerDisplay remainingMs={breakTimer.remainingMs} style={{ color: breakSessionTheme.accent }} />
+          {breakTimer.isPaused && <Text style={[styles.pausedText, { color: t.xpGold }]}>Paused</Text>}
+          {petBtn}
+          {breakControls}
+        </>
+      )}
 
-      <CompanionView evolutionStage={evolutionStage} size={160} />
-
-      <TimerDisplay remainingMs={breakTimer.remainingMs} style={{ color: breakSessionTheme.accent }} />
-
-      {breakTimer.isPaused && <Text style={[styles.pausedText, { color: t.xpGold }]}>Paused</Text>}
-
-      <TouchableOpacity
-        style={[
-          styles.petBtn,
-          { backgroundColor: t.xpGold + '33', borderColor: t.xpGold },
-          breakInteracted && { backgroundColor: breakSessionTheme.accent + '33', borderColor: breakSessionTheme.accent },
-        ]}
-        onPress={handlePetCompanion}
-        disabled={breakInteracted}
-        activeOpacity={0.8}
-        accessibilityLabel={breakInteracted ? 'Companion is happy' : 'Pet your companion'}
-        accessibilityRole="button"
-      >
-        <Text style={[styles.petBtnText, { color: t.textPrimary }]}>
-          {breakInteracted ? '💛 Companion is happy!' : '🐾 Pet your companion'}
-        </Text>
-      </TouchableOpacity>
-
-      <View style={styles.controls}>
-        <TouchableOpacity
-          style={[styles.controlBtn, { backgroundColor: breakSessionTheme.accent }]}
-          onPress={breakTimer.isRunning ? handlePauseBreak : handleResumeBreak}
-          activeOpacity={0.8}
-          accessibilityLabel={breakTimer.isRunning ? 'Pause break' : 'Resume break'}
-          accessibilityRole="button"
-        >
-          <Text style={styles.controlBtnText}>
-            {breakTimer.isRunning ? 'Pause' : 'Resume'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.controlBtn, { backgroundColor: t.surface, borderWidth: 1, borderColor: t.border }]}
-          onPress={handleSkipBreak}
-          activeOpacity={0.8}
-          accessibilityLabel="Skip break"
-          accessibilityRole="button"
-        >
-          <Text style={[styles.controlBtnText, { color: t.textSecondary }]}>Skip Break</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Break completion choice — shown after break ends or is skipped */}
-      <BreakEndModal
-        visible={showBreakEnd}
-        wasSkipped={breakWasSkipped}
-        onStartNextFocus={handleBreakEndContinue}
-        onFinishForNow={handleBreakEndFinish}
-      />
-    </ScrollView>
+      <BreakEndModal visible={showBreakEnd} wasSkipped={breakWasSkipped} onStartNextFocus={handleBreakEndContinue} onFinishForNow={handleBreakEndFinish} />
+    </Animated.ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
+  },
+  breathingGap: {
+    height: 32,
   },
   scrollScreen: {
     flex: 1,
@@ -533,6 +573,22 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: 64,
   },
+  setupContentLandscape: {
+    flexGrow: 1,
+    paddingHorizontal: 24,
+    paddingTop: 40,
+    paddingBottom: 24,
+  },
+  landscapeSetupColumns: {
+    flexDirection: 'row',
+    gap: 24,
+  },
+  landscapeCol: {
+    flex: 1,
+  },
+  landscapeColRight: {
+    justifyContent: 'center',
+  },
   runningContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
@@ -541,6 +597,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 22,
+  },
+  runningContentLandscape: {
+    flexGrow: 1,
+    flexDirection: 'row',
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 24,
+    alignItems: 'center',
+    gap: 24,
+  },
+  landscapeTimerCol: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  landscapeInfoCol: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
   },
   closeBtn: {
     position: 'absolute',
@@ -609,6 +686,28 @@ const styles = StyleSheet.create({
   sessionCount: {
     fontSize: 14,
     marginBottom: 24,
+  },
+  presetsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+    justifyContent: 'center',
+  },
+  presetChip: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingVertical: 10,
+    alignItems: 'center',
+    gap: 2,
+  },
+  presetText: {
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  presetUnit: {
+    fontSize: 10,
+    fontWeight: '600',
   },
   tagRow: {
     flexDirection: 'row',

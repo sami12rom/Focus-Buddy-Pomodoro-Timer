@@ -13,6 +13,8 @@ export function computeNewStreak(
   if (lastSessionDate === today) return currentStreak;
 
   if (addDaysToLocalDateKey(today, -1) === lastSessionDate) return currentStreak + 1;
+  // Grace period: one missed day doesn't break the streak
+  if (addDaysToLocalDateKey(today, -2) === lastSessionDate) return currentStreak + 1;
 
   return 1;
 }

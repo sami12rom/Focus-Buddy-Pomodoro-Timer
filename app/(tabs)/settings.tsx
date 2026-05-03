@@ -9,6 +9,7 @@ import { useSettingsStore } from '../../store/settingsStore';
 import { useGoalStore } from '../../store/goalStore';
 import { THEME_LIST, ThemeId, AppTheme } from '../../constants/colors';
 import { LONG_BREAK_MINUTES_MIN, LONG_BREAK_MINUTES_MAX } from '../../constants/game';
+import { AMBIENT_SOUNDS, VOLUME_STEPS } from '../../constants/sounds';
 import { resetAllAppData } from '../../utils/resetAppData';
 
 export default function SettingsScreen() {
@@ -16,8 +17,12 @@ export default function SettingsScreen() {
   const t = useTheme();
   const { activeThemeId, setTheme } = useThemeStore();
   const { selectedLongBreakMinutes, setLongBreakMinutes } = useSessionStore();
-  const { soundEnabled, hapticsEnabled, keepAwakeEnabled,
-          setSoundEnabled, setHapticsEnabled, setKeepAwakeEnabled } = useSettingsStore();
+  const {
+    soundEnabled, hapticsEnabled, keepAwakeEnabled, autoStartBreak,
+    ambientSound, ambientVolume, playAmbientDuringBreak,
+    setSoundEnabled, setHapticsEnabled, setKeepAwakeEnabled, setAutoStartBreak,
+    setAmbientSound, setAmbientVolume, setPlayAmbientDuringBreak,
+  } = useSettingsStore();
   const { dailySessionGoal, dailyMinuteGoal, setDailySessionGoal, setDailyMinuteGoal } = useGoalStore();
 
   function handleResetData() {
@@ -90,6 +95,15 @@ export default function SettingsScreen() {
           accent={t.focusAccent}
           t={t}
         />
+        <View style={[styles.divider, { backgroundColor: t.borderSubtle }]} />
+        <ToggleRow
+          label="Auto-start break"
+          description="Break begins automatically after focus completes"
+          value={autoStartBreak}
+          onToggle={setAutoStartBreak}
+          accent={t.focusAccent}
+          t={t}
+        />
       </View>
 
       {/* ── Daily focus goals ── */}
@@ -156,7 +170,83 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* ── Strict mode placeholder (item 7) — no behavior yet ── */}
+      {/* ── Ambient Sound ── */}
+      <Text style={[styles.sectionLabel, { color: t.textMuted }]}>Ambient Sound</Text>
+
+      <View style={[styles.card, { backgroundColor: t.surface }]}>
+        {/* Sound picker */}
+        <View style={styles.ambientPicker}>
+          {AMBIENT_SOUNDS.map((s) => {
+            const active = ambientSound === s.id;
+            const disabled = s.id !== 'none' && s.uri === null;
+            return (
+              <TouchableOpacity
+                key={s.id}
+                style={[
+                  styles.soundChip,
+                  {
+                    backgroundColor: active ? t.focusAccent : t.surfaceRaised,
+                    opacity: disabled ? 0.4 : 1,
+                  },
+                ]}
+                onPress={() => !disabled && setAmbientSound(s.id)}
+                activeOpacity={disabled ? 1 : 0.75}
+                accessibilityLabel={`${s.label} sound${disabled ? ', coming soon' : ''}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+              >
+                <Text style={styles.soundChipIcon}>{s.icon}</Text>
+                <Text style={[styles.soundChipLabel, { color: active ? '#fff' : t.textSecondary }]}>
+                  {s.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <View style={[styles.divider, { backgroundColor: t.borderSubtle }]} />
+
+        {/* Volume chips */}
+        <View style={styles.volumeRow}>
+          <Text style={[styles.volumeRowLabel, { color: t.textPrimary }]}>Volume</Text>
+          <View style={styles.volumeChips}>
+            {VOLUME_STEPS.map((step) => {
+              const active = ambientVolume === step.value;
+              return (
+                <TouchableOpacity
+                  key={step.label}
+                  style={[
+                    styles.volumeChip,
+                    { backgroundColor: active ? t.focusAccent : t.surfaceRaised },
+                  ]}
+                  onPress={() => setAmbientVolume(step.value)}
+                  activeOpacity={0.75}
+                  accessibilityLabel={`Volume ${step.label}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text style={[styles.volumeChipText, { color: active ? '#fff' : t.textSecondary }]}>
+                    {step.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
+        <View style={[styles.divider, { backgroundColor: t.borderSubtle }]} />
+
+        <ToggleRow
+          label="Play during breaks"
+          description="Keep ambient sound running through break time"
+          value={playAmbientDuringBreak}
+          onToggle={setPlayAmbientDuringBreak}
+          accent={t.focusAccent}
+          t={t}
+        />
+      </View>
+
+      {/* ── Strict mode placeholder ── */}
       <Text style={[styles.sectionLabel, { color: t.textMuted }]}>Coming Later</Text>
 
       <View style={[styles.card, { backgroundColor: t.surface }]}>
@@ -455,6 +545,38 @@ const styles = StyleSheet.create({
   resetLeft: { flex: 1, gap: 2 },
   resetLabel: { fontSize: 15, fontWeight: '600' },
   resetDesc: { fontSize: 12 },
+  // Ambient sound
+  ambientPicker: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    padding: 16,
+  },
+  soundChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  soundChipIcon: { fontSize: 16 },
+  soundChipLabel: { fontSize: 13, fontWeight: '600' },
+  volumeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  volumeRowLabel: { fontSize: 15, fontWeight: '500', flex: 1 },
+  volumeChips: { flexDirection: 'row', gap: 8 },
+  volumeChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 16,
+  },
+  volumeChipText: { fontSize: 13, fontWeight: '600' },
   // Theme grid
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   themeCard: {

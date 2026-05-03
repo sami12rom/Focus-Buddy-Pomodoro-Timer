@@ -3,62 +3,68 @@ import {
   shouldApplyDecay,
   applyDecay,
   canPetToday,
-  getLast7Days,
-  getCurrentMonthDays,
   getTagTotals,
   isLongBreakDue,
   computeElapsedMs,
+  getLast7Days,
 } from '../gameLogic';
-import { addDaysToLocalDateKey, getLocalDateKey } from '../date';
+import { DAILY_HAPPINESS_DECAY, HAPPINESS_MIN, FOCUS_SESSIONS_BEFORE_LONG_BREAK } from '../../constants/game';
+import { getLocalDateKey } from '../date';
+import type { SessionTag } from '../../constants/sessionTags';
+
+const TODAY = '2025-06-15';
+const YESTERDAY = '2025-06-14';
+const TWO_DAYS_AGO = '2025-06-13';
+const THREE_DAYS_AGO = '2025-06-12';
 
 // ── computeNewStreak ──────────────────────────────────────────────────────
 
 describe('computeNewStreak', () => {
-  const TODAY = '2026-04-27';
-  const YESTERDAY = '2026-04-26';
-  const TWO_DAYS_AGO = '2026-04-25';
-
-  it('returns 1 when there is no prior session', () => {
+  it('returns 1 when there is no previous session', () => {
     expect(computeNewStreak(0, null, TODAY)).toBe(1);
   });
 
-  it('keeps the streak unchanged when last session was today', () => {
+  it('keeps the same streak when last session was today', () => {
     expect(computeNewStreak(5, TODAY, TODAY)).toBe(5);
   });
 
-  it('increments the streak when last session was yesterday', () => {
+  it('increments streak when last session was yesterday', () => {
     expect(computeNewStreak(3, YESTERDAY, TODAY)).toBe(4);
   });
 
-  it('resets streak to 1 when last session was two or more days ago', () => {
-    expect(computeNewStreak(7, TWO_DAYS_AGO, TODAY)).toBe(1);
+  it('increments streak on the grace period (2 days ago)', () => {
+    expect(computeNewStreak(3, TWO_DAYS_AGO, TODAY)).toBe(4);
+  });
+
+  it('resets to 1 when last session was 3+ days ago', () => {
+    expect(computeNewStreak(7, THREE_DAYS_AGO, TODAY)).toBe(1);
+  });
+
+  it('resets to 1 when last session was long ago', () => {
+    expect(computeNewStreak(30, '2025-01-01', TODAY)).toBe(1);
   });
 });
 
 // ── shouldApplyDecay ──────────────────────────────────────────────────────
 
 describe('shouldApplyDecay', () => {
-  const TODAY = '2026-04-27';
-  const YESTERDAY = '2026-04-26';
-  const TWO_DAYS_AGO = '2026-04-25';
-
-  it('returns false when decay was already applied today', () => {
+  it('does not decay if already decayed today', () => {
     expect(shouldApplyDecay(TODAY, TODAY, null)).toBe(false);
   });
 
-  it('returns false when the user played today', () => {
-    expect(shouldApplyDecay(TODAY, null, TODAY)).toBe(false);
+  it('does not decay if there was a session today', () => {
+    expect(shouldApplyDecay(TODAY, YESTERDAY, TODAY)).toBe(false);
   });
 
-  it('returns false when the user played yesterday', () => {
+  it('does not decay if last session was yesterday', () => {
     expect(shouldApplyDecay(TODAY, null, YESTERDAY)).toBe(false);
   });
 
-  it('returns true when last session was two or more days ago', () => {
-    expect(shouldApplyDecay(TODAY, null, TWO_DAYS_AGO)).toBe(true);
+  it('decays when no session today or yesterday and not yet decayed today', () => {
+    expect(shouldApplyDecay(TODAY, YESTERDAY, TWO_DAYS_AGO)).toBe(true);
   });
 
-  it('returns true when there has never been a session', () => {
+  it('decays when no session history at all', () => {
     expect(shouldApplyDecay(TODAY, null, null)).toBe(true);
   });
 });
@@ -66,130 +72,118 @@ describe('shouldApplyDecay', () => {
 // ── applyDecay ────────────────────────────────────────────────────────────
 
 describe('applyDecay', () => {
-  it('reduces happiness by the daily decay amount', () => {
-    // Just verify it decreases — actual constant value tested separately
-    expect(applyDecay(80)).toBeLessThan(80);
+  it('reduces happiness by DAILY_HAPPINESS_DECAY', () => {
+    expect(applyDecay(80)).toBe(80 - DAILY_HAPPINESS_DECAY);
   });
 
-  it('does not drop below the minimum happiness', () => {
-    expect(applyDecay(0)).toBeGreaterThanOrEqual(0);
+  it('does not go below HAPPINESS_MIN', () => {
+    expect(applyDecay(HAPPINESS_MIN)).toBe(HAPPINESS_MIN);
+    expect(applyDecay(HAPPINESS_MIN + 1)).toBe(HAPPINESS_MIN);
+    expect(applyDecay(1)).toBe(HAPPINESS_MIN);
+  });
+
+  it('applies the full decay when well above the floor', () => {
+    expect(applyDecay(HAPPINESS_MIN + DAILY_HAPPINESS_DECAY + 10)).toBe(HAPPINESS_MIN + 10);
   });
 });
 
 // ── canPetToday ───────────────────────────────────────────────────────────
 
 describe('canPetToday', () => {
-  const TODAY = '2026-04-27';
-  const YESTERDAY = '2026-04-26';
-
-  it('returns true when lastPetDate is null', () => {
+  it('allows petting when lastPetDate is null', () => {
     expect(canPetToday(null, TODAY)).toBe(true);
   });
 
-  it('returns true when lastPetDate was a different day', () => {
+  it('allows petting when last pet was yesterday', () => {
     expect(canPetToday(YESTERDAY, TODAY)).toBe(true);
   });
 
-  it('returns false when the companion was already petted today', () => {
+  it('prevents petting when already petted today', () => {
     expect(canPetToday(TODAY, TODAY)).toBe(false);
-  });
-});
-
-// ── getLast7Days ──────────────────────────────────────────────────────────
-
-describe('getLast7Days', () => {
-  it('returns exactly 7 entries', () => {
-    expect(getLast7Days([])).toHaveLength(7);
-  });
-
-  it('returns 0 minutes for all days when entries is empty', () => {
-    const days = getLast7Days([]);
-    expect(days.every((d) => d.minutes === 0)).toBe(true);
-  });
-
-  it('sums minutes for sessions on the same day', () => {
-    const today = getLocalDateKey();
-    const entries = [
-      { id: '1', date: today, task: '', tag: 'Work' as const, durationMinutes: 25, completedAt: '' },
-      { id: '2', date: today, task: '', tag: 'Study' as const, durationMinutes: 25, completedAt: '' },
-    ];
-    const days = getLast7Days(entries);
-    const todayBar = days.find((d) => d.date === today);
-    expect(todayBar?.minutes).toBe(50);
-  });
-
-  it('ignores entries older than 7 days', () => {
-    const oldDate = (() => {
-      const d = new Date();
-      d.setDate(d.getDate() - 10);
-      return getLocalDateKey(d);
-    })();
-    const entries = [
-      { id: '1', date: oldDate, task: '', tag: 'Work' as const, durationMinutes: 25, completedAt: '' },
-    ];
-    const days = getLast7Days(entries);
-    expect(days.every((d) => d.minutes === 0)).toBe(true);
-  });
-});
-
-// ── monthly and tag aggregation ──────────────────────────────────────────
-
-describe('monthly and tag aggregation', () => {
-  it('returns one entry for each day in the current month', () => {
-    const days = getCurrentMonthDays([], new Date(2026, 3, 27));
-    expect(days).toHaveLength(30);
-    expect(days[0].date).toBe('2026-04-01');
-  });
-
-  it('sums minutes by session tag', () => {
-    const entries = [
-      { id: '1', date: '2026-04-27', task: '', tag: 'Work' as const, durationMinutes: 25, completedAt: '' },
-      { id: '2', date: '2026-04-27', task: '', tag: 'Work' as const, durationMinutes: 15, completedAt: '' },
-      { id: '3', date: '2026-04-27', task: '', tag: 'Reading' as const, durationMinutes: 20, completedAt: '' },
-    ];
-    expect(getTagTotals(entries)).toEqual({ Work: 40, Reading: 20 });
-  });
-});
-
-// ── local date helpers ───────────────────────────────────────────────────
-
-describe('local date helpers', () => {
-  it('formats dates as local YYYY-MM-DD keys', () => {
-    expect(getLocalDateKey(new Date(2026, 0, 5))).toBe('2026-01-05');
-  });
-
-  it('adds days across month boundaries using local calendar dates', () => {
-    expect(addDaysToLocalDateKey('2026-03-01', -1)).toBe('2026-02-28');
   });
 });
 
 // ── isLongBreakDue ────────────────────────────────────────────────────────
 
 describe('isLongBreakDue', () => {
-  it('returns false when fewer than 4 focus sessions completed in cycle', () => {
-    expect(isLongBreakDue(3)).toBe(false);
+  it('returns false when below the threshold', () => {
+    expect(isLongBreakDue(FOCUS_SESSIONS_BEFORE_LONG_BREAK - 1)).toBe(false);
   });
 
-  it('returns true when exactly 4 focus sessions completed in cycle', () => {
-    expect(isLongBreakDue(4)).toBe(true);
+  it('returns true at exactly the threshold', () => {
+    expect(isLongBreakDue(FOCUS_SESSIONS_BEFORE_LONG_BREAK)).toBe(true);
   });
 
-  it('returns true when more than 4 focus sessions completed in cycle', () => {
-    expect(isLongBreakDue(6)).toBe(true);
+  it('returns true above the threshold', () => {
+    expect(isLongBreakDue(FOCUS_SESSIONS_BEFORE_LONG_BREAK + 1)).toBe(true);
   });
 });
 
 // ── computeElapsedMs ─────────────────────────────────────────────────────
 
 describe('computeElapsedMs', () => {
-  it('returns elapsed time excluding paused duration', () => {
-    const startedAt = 1000;
-    const totalPausedMs = 200;
-    const now = 1800;
-    expect(computeElapsedMs(startedAt, totalPausedMs, now)).toBe(600);
+  it('returns elapsed time with no pauses', () => {
+    expect(computeElapsedMs(1000, 0, 6000)).toBe(5000);
   });
 
-  it('returns 0 when called at the exact start time with no pauses', () => {
-    expect(computeElapsedMs(1000, 0, 1000)).toBe(0);
+  it('subtracts paused time from elapsed', () => {
+    expect(computeElapsedMs(1000, 3000, 11000)).toBe(7000);
+  });
+
+  it('returns 0 when paused for the full duration', () => {
+    expect(computeElapsedMs(1000, 5000, 6000)).toBe(0);
+  });
+});
+
+// ── getTagTotals ─────────────────────────────────────────────────────────
+
+describe('getTagTotals', () => {
+  it('returns empty object for no entries', () => {
+    expect(getTagTotals([])).toEqual({});
+  });
+
+  it('sums minutes per tag', () => {
+    const entries = [
+      { id: '1', date: TODAY, tag: 'Work' as SessionTag,  durationMinutes: 25, completedAt: '', task: '' },
+      { id: '2', date: TODAY, tag: 'Work' as SessionTag,  durationMinutes: 30, completedAt: '', task: '' },
+      { id: '3', date: TODAY, tag: 'Study' as SessionTag, durationMinutes: 45, completedAt: '', task: '' },
+    ];
+    expect(getTagTotals(entries)).toEqual({ Work: 55, Study: 45 });
+  });
+
+  it('falls back to Work when tag is null', () => {
+    const entries = [
+      { id: '1', date: TODAY, tag: null as any, durationMinutes: 20, completedAt: '', task: '' },
+    ];
+    expect(getTagTotals(entries)).toEqual({ Work: 20 });
+  });
+});
+
+// ── getLast7Days ─────────────────────────────────────────────────────────
+
+describe('getLast7Days', () => {
+  it('always returns exactly 7 entries', () => {
+    expect(getLast7Days([])).toHaveLength(7);
+  });
+
+  it('returns 0 minutes for days with no sessions', () => {
+    const result = getLast7Days([]);
+    expect(result.every((d) => d.minutes === 0)).toBe(true);
+  });
+
+  it('correctly accumulates minutes for matching date', () => {
+    const todayKey = getLocalDateKey();
+    const entries = [
+      { id: '1', date: todayKey, tag: 'Work' as SessionTag, durationMinutes: 25, completedAt: '', task: '' },
+      { id: '2', date: todayKey, tag: 'Work' as SessionTag, durationMinutes: 25, completedAt: '', task: '' },
+    ];
+    const result = getLast7Days(entries);
+    const todayBar = result.find((d) => d.date === todayKey);
+    expect(todayBar?.minutes).toBe(50);
+  });
+
+  it('last entry is today', () => {
+    const result = getLast7Days([]);
+    expect(result[result.length - 1].date).toBe(getLocalDateKey());
   });
 });

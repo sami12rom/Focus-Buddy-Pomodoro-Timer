@@ -2,10 +2,8 @@ export const FOCUS_DURATION_MS = 25 * 60 * 1000;
 export const BREAK_DURATION_MS = 5 * 60 * 1000;
 
 export const XP_PER_SESSION = 50;
-export const ENERGY_PER_SESSION = 10;
 export const HAPPINESS_PER_SESSION = 15;
 export const HAPPINESS_PER_BREAK_INTERACTION = 5;
-export const ENERGY_MAX = 100;
 export const HAPPINESS_MAX = 100;
 
 // Cumulative XP needed to *reach* each level (index 0 = level 1)
@@ -32,7 +30,6 @@ export const MOOD_HAPPY_THRESHOLD = 70;
 export const MOOD_NEUTRAL_THRESHOLD = 40;
 
 export const DEFAULT_COMPANION_NAME = 'Pomo';
-export const INITIAL_ENERGY = 80;
 export const INITIAL_HAPPINESS = 80;
 
 export const HAPPINESS_PER_PET = 5;

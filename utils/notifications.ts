@@ -77,6 +77,17 @@ export async function cancelScheduledNotification(): Promise<void> {
   }
 }
 
+export async function fireAchievementNotification(title: string, description: string): Promise<void> {
+  try {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== 'granted') return;
+    await Notifications.scheduleNotificationAsync({
+      content: { title: `🏆 ${title}`, body: description, sound: true },
+      trigger: null,
+    });
+  } catch {}
+}
+
 export async function fireCompletionAlarm(type: 'focus' | 'break'): Promise<void> {
   try {
     const { status } = await Notifications.getPermissionsAsync();

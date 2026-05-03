@@ -3,14 +3,11 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   XP_PER_SESSION,
-  ENERGY_PER_SESSION,
   HAPPINESS_PER_SESSION,
   HAPPINESS_PER_BREAK_INTERACTION,
   HAPPINESS_PER_PET,
-  ENERGY_MAX,
   HAPPINESS_MAX,
   DEFAULT_COMPANION_NAME,
-  INITIAL_ENERGY,
   INITIAL_HAPPINESS,
 } from '../constants/game';
 import { getLevelForXP, getEvolutionStage } from '../utils/xp';
@@ -21,7 +18,6 @@ interface CompanionState {
   name: string;
   level: number;
   xp: number;
-  energy: number;
   happiness: number;
   evolutionStage: 1 | 2 | 3 | 4 | 5;
   createdAt: string;
@@ -34,7 +30,6 @@ interface CompanionState {
 
 export interface FocusRewardResult {
   xpGained: number;
-  energyGained: number;
   happinessGained: number;
   leveledUp: boolean;
   newLevel: number;
@@ -57,7 +52,6 @@ const initialState: Omit<CompanionState, 'isHydrated'> = {
   name: DEFAULT_COMPANION_NAME,
   level: 1,
   xp: 0,
-  energy: INITIAL_ENERGY,
   happiness: INITIAL_HAPPINESS,
   evolutionStage: 1,
   createdAt: new Date().toISOString(),
@@ -79,16 +73,14 @@ export const useCompanionStore = create<CompanionState & CompanionActions>()(
         const oldStage = state.evolutionStage;
 
         const newXP = state.xp + XP_PER_SESSION;
-        const newEnergy = Math.min(state.energy + ENERGY_PER_SESSION, ENERGY_MAX);
         const newHappiness = Math.min(state.happiness + HAPPINESS_PER_SESSION, HAPPINESS_MAX);
         const newLevel = getLevelForXP(newXP);
         const newStage = getEvolutionStage(newLevel);
 
-        set({ xp: newXP, energy: newEnergy, happiness: newHappiness, level: newLevel, evolutionStage: newStage });
+        set({ xp: newXP, happiness: newHappiness, level: newLevel, evolutionStage: newStage });
 
         return {
           xpGained: XP_PER_SESSION,
-          energyGained: ENERGY_PER_SESSION,
           happinessGained: HAPPINESS_PER_SESSION,
           leveledUp: newLevel > oldLevel,
           newLevel,

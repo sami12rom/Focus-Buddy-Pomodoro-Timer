@@ -1,17 +1,31 @@
 import { useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { setupAndroidNotificationChannel } from '../utils/notifications';
+import * as ScreenOrientation from 'expo-screen-orientation';
+import { setupAndroidNotificationChannel, requestNotificationPermissions } from '../utils/notifications';
 import { useThemeStore } from '../store/themeStore';
+import { useCompanionStore } from '../store/companionStore';
+import { useStatsStore } from '../store/statsStore';
 import { THEMES } from '../constants/colors';
+import { getLocalDateKey } from '../utils/date';
 
 export default function RootLayout() {
   const activeThemeId = useThemeStore((s) => s.activeThemeId);
   const t = THEMES[activeThemeId];
+  const isHydrated = useCompanionStore((s) => s.isHydrated);
+  const applyDailyCareCheck = useCompanionStore((s) => s.applyDailyCareCheck);
+  const lastSessionDate = useStatsStore((s) => s.lastSessionDate);
 
   useEffect(() => {
     setupAndroidNotificationChannel();
+    requestNotificationPermissions();
+    ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
   }, []);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    applyDailyCareCheck(getLocalDateKey(), lastSessionDate);
+  }, [isHydrated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     // key forces tab bar to re-render immediately when theme changes

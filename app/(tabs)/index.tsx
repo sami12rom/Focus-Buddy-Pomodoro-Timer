@@ -7,12 +7,13 @@ import {
   ScrollView,
   ActivityIndicator,
   StatusBar,
+  Animated,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as Haptics from 'expo-haptics';
 import { useCompanionStore, FocusRewardResult } from '../../store/companionStore';
 import { useStatsStore } from '../../store/statsStore';
-import { useSessionStore } from '../../store/sessionStore';
+import { useSessionStore, ActiveSessionSnapshot } from '../../store/sessionStore';
 import { useSessionHistoryStore } from '../../store/sessionHistoryStore';
 import { useSettingsStore } from '../../store/settingsStore';
 import { useTheme } from '../../hooks/useTheme';
@@ -27,15 +28,18 @@ import { EVOLUTION_STAGE_NAMES } from '../../constants/game';
 import { APP_NAME } from '../../constants/app';
 import { computeElapsedMs } from '../../utils/gameLogic';
 import { getLocalDateKey } from '../../utils/date';
+import { getTodayFocusMinutes, goalProgress } from '../../utils/sessionStats';
+import { withAlpha } from '../../utils/color';
 import { DEFAULT_SESSION_TAG } from '../../constants/sessionTags';
 import { useGoalStore } from '../../store/goalStore';
+import { getCompanionMessage } from '../../utils/companionDialogue';
 
 export default function HomeScreen() {
   const router = useRouter();
   const t = useTheme();
   const {
     name, level, xp, happiness, evolutionStage, isHydrated,
-    hasCompletedOnboarding, completeOnboarding, petCompanion, applyDailyCareCheck,
+    hasCompletedOnboarding, completeOnboarding, petCompanion,
     applyFocusReward,
   } = useCompanionStore();
   const {
@@ -49,19 +53,19 @@ export default function HomeScreen() {
   const { activeSessionSnapshot, reset: resetSession, resumeFromSnapshot, clearSnapshot } = useSessionStore();
   const { entries, addEntry } = useSessionHistoryStore();
   const { hapticsEnabled } = useSettingsStore();
-  const { dailySessionGoal, dailyMinuteGoal } = useGoalStore();
+  const { dailySessionGoal, dailyMinuteGoal, setDailySessionGoal } = useGoalStore();
 
   const [petMessage, setPetMessage] = useState<string | null>(null);
+  const [dialogueMessage, setDialogueMessage] = useState('');
+  const bubbleOpacity = useRef(new Animated.Value(0)).current;
   const [recoveryState, setRecoveryState] = useState<RecoveryState>(null);
   const [recoveryRewardResult, setRecoveryRewardResult] = useState<FocusRewardResult | null>(null);
   const [recoveryRewardTask, setRecoveryRewardTask] = useState('');
   const [showRecoveryReward, setShowRecoveryReward] = useState(false);
   const today = getLocalDateKey();
-  const todayFocusMinutes = entries
-    .filter((entry) => entry.date === today)
-    .reduce((sum, entry) => sum + entry.durationMinutes, 0);
-  const sessionGoalProgress = Math.min(todaySessions / dailySessionGoal, 1);
-  const minuteGoalProgress = Math.min(todayFocusMinutes / dailyMinuteGoal, 1);
+  const todayFocusMinutes = getTodayFocusMinutes(entries, today);
+  const sessionGoalProgress = goalProgress(todaySessions, dailySessionGoal);
+  const minuteGoalProgress = goalProgress(todayFocusMinutes, dailyMinuteGoal);
 
   // Only check recovery once per app launch, after store hydrates
   const recoveryCheckedRef = useRef(false);
@@ -69,11 +73,31 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       resetTodayIfNewDay();
-      // Notification permission is now requested at first session start (focus.tsx)
-      const today = getLocalDateKey();
-      applyDailyCareCheck(today, lastSessionDate);
-    }, [lastSessionDate]) // eslint-disable-line react-hooks/exhaustive-deps
+      setDialogueMessage(
+        getCompanionMessage({
+          name,
+          evolutionStage,
+          happiness,
+          currentStreak,
+          todaySessions,
+          dailySessionGoal,
+          lastSessionDate,
+          hourOfDay: new Date().getHours(),
+        }),
+      );
+    }, [name, evolutionStage, happiness, currentStreak, todaySessions, dailySessionGoal, lastSessionDate]) // eslint-disable-line react-hooks/exhaustive-deps
   );
+
+  // Fade in the bubble each time the message updates
+  useEffect(() => {
+    if (!dialogueMessage) return;
+    bubbleOpacity.setValue(0);
+    Animated.timing(bubbleOpacity, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+  }, [dialogueMessage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Check for a persisted session snapshot once hydration completes
   useEffect(() => {
@@ -115,6 +139,12 @@ export default function HomeScreen() {
     setTimeout(() => setPetMessage(null), 2000);
   }
 
+  // ── Recovery helpers ──────────────────────────────────────────────────────
+
+  function maybeRecordLongBreak(snap: ActiveSessionSnapshot | undefined) {
+    if (snap?.type === 'break' && snap.isLongBreak) recordLongBreakCompleted();
+  }
+
   // ── Recovery handlers ─────────────────────────────────────────────────────
 
   function handleRecoveryResume() {
@@ -152,20 +182,14 @@ export default function HomeScreen() {
   }
 
   function handleRecoveryContinue() {
-    const snap = recoveryState?.snapshot;
-    if (snap?.type === 'break' && snap.isLongBreak) {
-      recordLongBreakCompleted();
-    }
+    maybeRecordLongBreak(recoveryState?.snapshot);
     clearSnapshot();
     resetSession();
     setRecoveryState(null);
   }
 
   function handleRecoveryFinish() {
-    const snap = recoveryState?.snapshot;
-    if (snap?.type === 'break' && snap.isLongBreak) {
-      recordLongBreakCompleted();
-    }
+    maybeRecordLongBreak(recoveryState?.snapshot);
     clearSnapshot();
     resetSession();
     setRecoveryState(null);
@@ -180,85 +204,104 @@ export default function HomeScreen() {
   }
 
   if (!hasCompletedOnboarding) {
-    return <OnboardingModal onComplete={completeOnboarding} />;
+    return (
+      <OnboardingModal
+        onComplete={(name, sessionGoal) => {
+          completeOnboarding(name);
+          setDailySessionGoal(sessionGoal);
+        }}
+      />
+    );
   }
 
   return (
-    <ScrollView
-      style={[styles.scroll, { backgroundColor: t.bg }]}
-      contentContainerStyle={styles.container}
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={[styles.screen, { backgroundColor: t.bg }]}>
       <StatusBar barStyle="light-content" backgroundColor={t.bg} />
 
-      <SessionBanner />
-
-      <View style={styles.header}>
-        <Text style={[styles.appName, { color: t.textSecondary }]}>{APP_NAME}</Text>
-      </View>
-
-      <View style={styles.companionSection}>
-        <CompanionView
-          evolutionStage={evolutionStage}
-          size={220}
-          onTap={handleTapCompanion}
-          onLongPress={handlePetCompanion}
-        />
-        {petMessage && (
-          <Text style={[styles.petMessage, { color: t.xpGold }]}>{petMessage}</Text>
-        )}
-        <Text style={[styles.companionName, { color: t.textPrimary }]}>{name}</Text>
-        <Text style={[styles.stageName, { color: t.focusAccent }]}>{EVOLUTION_STAGE_NAMES[evolutionStage]}</Text>
-        <MoodBadge happiness={happiness} />
-      </View>
-
-      <View style={styles.xpSection}>
-        <XPBar xp={xp} />
-      </View>
-
-      <View style={styles.statsRow}>
-        <StatCard icon="💛" label="Happiness" value={`${happiness}%`}           color={t.happiness}   bg={t.surface} labelColor={t.textMuted} />
-        <StatCard icon="⭐" label="Level"     value={String(level)}             color={t.focusAccent} bg={t.surface} labelColor={t.textMuted} />
-      </View>
-
-      <View style={styles.statsRow}>
-        <StatCard icon="🎯" label="Today"  value={`${todaySessions} sessions`} color={t.today}  bg={t.surface} labelColor={t.textMuted} />
-        <StatCard icon="🔥" label="Streak" value={`${currentStreak} days`}     color={t.streak} bg={t.surface} labelColor={t.textMuted} />
-      </View>
-
-      <View style={[styles.goalCard, { backgroundColor: t.surface }]}>
-        <Text style={[styles.goalTitle, { color: t.textPrimary }]}>Daily Goals</Text>
-        <GoalRow
-          label="Sessions"
-          value={`${todaySessions}/${dailySessionGoal}`}
-          progress={sessionGoalProgress}
-          accent={t.today}
-          muted={t.textMuted}
-          text={t.textSecondary}
-          track={t.surfaceRaised}
-        />
-        <GoalRow
-          label="Focus minutes"
-          value={`${todayFocusMinutes}/${dailyMinuteGoal}m`}
-          progress={minuteGoalProgress}
-          accent={t.focusAccent}
-          muted={t.textMuted}
-          text={t.textSecondary}
-          track={t.surfaceRaised}
-        />
-      </View>
-
-      <TouchableOpacity
-        style={[styles.startButton, { backgroundColor: t.focusAccent }]}
-        onPress={() => router.push('/focus')}
-        activeOpacity={0.85}
-        accessibilityLabel="Start focus session"
-        accessibilityRole="button"
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.container}
+        showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.startButtonText}>Start Focus Session</Text>
-      </TouchableOpacity>
+        <SessionBanner />
 
-      {/* Session recovery prompt — shown once per launch when a snapshot is found */}
+        <View style={styles.header}>
+          <Text style={[styles.appName, { color: t.textSecondary }]}>{APP_NAME}</Text>
+        </View>
+
+        <View style={styles.companionSection}>
+          {dialogueMessage && !petMessage && (
+            <Animated.View style={[styles.speechBubbleWrap, { opacity: bubbleOpacity }]}>
+              <View style={[styles.speechBubble, { backgroundColor: t.surface }]}>
+                <Text style={[styles.speechBubbleText, { color: t.textSecondary }]}>{dialogueMessage}</Text>
+              </View>
+              <View style={[styles.speechBubbleTail, { borderTopColor: t.surface }]} />
+            </Animated.View>
+          )}
+          <CompanionView
+            evolutionStage={evolutionStage}
+            size={220}
+            onTap={handleTapCompanion}
+            onLongPress={handlePetCompanion}
+          />
+          {petMessage && (
+            <Text style={[styles.petMessage, { color: t.xpGold }]}>{petMessage}</Text>
+          )}
+          <Text style={[styles.companionName, { color: t.textPrimary }]}>{name}</Text>
+          <Text style={[styles.stageName, { color: t.focusAccent }]}>{EVOLUTION_STAGE_NAMES[evolutionStage]}</Text>
+          <MoodBadge happiness={happiness} />
+        </View>
+
+        <View style={styles.xpSection}>
+          <XPBar xp={xp} />
+        </View>
+
+        <View style={styles.statsRow}>
+          <StatCard icon="💛" label="Happiness" value={`${happiness}%`}           color={t.happiness}   bg={t.surface} labelColor={t.textMuted} />
+          <StatCard icon="⭐" label="Level"     value={String(level)}             color={t.focusAccent} bg={t.surface} labelColor={t.textMuted} />
+        </View>
+
+        <View style={styles.statsRow}>
+          <StatCard icon="🎯" label="Today"  value={`${todaySessions} sessions`} color={t.today}  bg={t.surface} labelColor={t.textMuted} />
+          <StatCard icon="🔥" label="Streak" value={`${currentStreak} days`}     color={t.streak} bg={t.surface} labelColor={t.textMuted} />
+        </View>
+
+        <View style={[styles.goalCard, { backgroundColor: t.surface }]}>
+          <Text style={[styles.goalTitle, { color: t.textPrimary }]}>Daily Goals</Text>
+          <GoalRow
+            label="Sessions"
+            value={`${todaySessions}/${dailySessionGoal}`}
+            progress={sessionGoalProgress}
+            accent={t.today}
+            muted={t.textMuted}
+            text={t.textSecondary}
+            track={t.surfaceRaised}
+          />
+          <GoalRow
+            label="Focus minutes"
+            value={`${todayFocusMinutes}/${dailyMinuteGoal}m`}
+            progress={minuteGoalProgress}
+            accent={t.focusAccent}
+            muted={t.textMuted}
+            text={t.textSecondary}
+            track={t.surfaceRaised}
+          />
+        </View>
+      </ScrollView>
+
+      {/* Floating start button — always visible above the tab bar */}
+      <View style={[styles.floatingBar, { backgroundColor: withAlpha(t.bg, 0.8), borderTopColor: t.border }]}>
+        <TouchableOpacity
+          style={[styles.startButton, { backgroundColor: t.focusAccent }]}
+          onPress={() => router.push('/focus')}
+          activeOpacity={0.85}
+          accessibilityLabel="Start focus session"
+          accessibilityRole="button"
+        >
+          <Text style={styles.startButtonText}>Start Focus Session</Text>
+        </TouchableOpacity>
+      </View>
+
       <RecoveryModal
         state={recoveryState}
         onResume={handleRecoveryResume}
@@ -268,7 +311,6 @@ export default function HomeScreen() {
         onFinishForNow={handleRecoveryFinish}
       />
 
-      {/* Reward from mark-completed recovery */}
       <RewardModal
         visible={showRecoveryReward}
         result={recoveryRewardResult}
@@ -278,7 +320,7 @@ export default function HomeScreen() {
           setRecoveryRewardTask('');
         }}
       />
-    </ScrollView>
+    </View>
   );
 }
 
@@ -327,8 +369,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  screen: {
+    flex: 1,
+  },
   scroll: {
     flex: 1,
+  },
+  floatingBar: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 16,
+    borderTopWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 8,
   },
   container: {
     paddingHorizontal: 20,
@@ -356,6 +412,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginTop: -4,
+  },
+  speechBubbleWrap: {
+    alignItems: 'center',
+  },
+  speechBubble: {
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    maxWidth: '82%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  speechBubbleTail: {
+    width: 0,
+    height: 0,
+    borderLeftWidth: 8,
+    borderRightWidth: 8,
+    borderTopWidth: 10,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+  },
+  speechBubbleText: {
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 20,
   },
   companionName: {
     fontSize: 28,
@@ -400,7 +485,6 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
     width: '100%',
     alignItems: 'center',
-    marginTop: 8,
   },
   startButtonText: {
     color: '#fff',

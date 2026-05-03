@@ -13,12 +13,14 @@ interface StatsState {
   lastSessionDate: string | null;
   lastActiveDate: string | null;
   longBreaksCompleted: number;
+  unlockedAchievements: string[];
 }
 
 interface StatsActions {
   recordCompletedSession: (durationMinutes: number) => void;
   recordLongBreakCompleted: () => void;
   resetTodayIfNewDay: () => void;
+  markAchievementsNotified: (ids: string[]) => void;
   resetToDefaults: () => void;
 }
 
@@ -36,6 +38,7 @@ const initialStats: StatsState = {
   lastSessionDate: null,
   lastActiveDate: null,
   longBreaksCompleted: 0,
+  unlockedAchievements: [],
 };
 
 export const useStatsStore = create<StatsState & StatsActions>()(
@@ -64,6 +67,11 @@ export const useStatsStore = create<StatsState & StatsActions>()(
 
       resetToDefaults: () => set({ ...initialStats }),
 
+      markAchievementsNotified: (ids) =>
+        set((state) => ({
+          unlockedAchievements: Array.from(new Set([...state.unlockedAchievements, ...ids])),
+        })),
+
       recordLongBreakCompleted: () =>
         set((state) => ({ longBreaksCompleted: state.longBreaksCompleted + 1 })),
 
@@ -80,13 +88,10 @@ export const useStatsStore = create<StatsState & StatsActions>()(
     {
       name: 'stats-store',
       storage: createJSONStorage(() => AsyncStorage),
-      version: 1,
-      migrate: (persisted: unknown, fromVersion: number) => {
+      version: 2,
+      migrate: (persisted: unknown, _fromVersion: number) => {
         const base = (persisted ?? {}) as Partial<StatsState>;
-        if (fromVersion < 1) {
-          return { ...initialStats, ...base };
-        }
-        return { ...initialStats, ...base };
+        return { ...initialStats, ...base, unlockedAchievements: base.unlockedAchievements ?? [] };
       },
     }
   )

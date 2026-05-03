@@ -1,5 +1,6 @@
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '../hooks/useTheme';
 
 interface Props {
@@ -14,7 +15,7 @@ export default function BreakEndModal({ visible, wasSkipped, onStartNextFocus, o
   return (
     <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
       <View style={styles.overlay}>
-        <View style={[styles.card, { backgroundColor: t.surface }]}>
+        <Animated.View entering={FadeInDown.duration(400).springify()} style={[styles.card, { backgroundColor: t.surface }]}>
           <Text style={[styles.title, { color: t.textPrimary }]}>
             {wasSkipped ? 'Break skipped' : 'Break complete'}
           </Text>
@@ -37,7 +38,7 @@ export default function BreakEndModal({ visible, wasSkipped, onStartNextFocus, o
           >
             <Text style={[styles.secondaryBtnText, { color: t.textSecondary }]}>Finish for now</Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </View>
     </Modal>
   );
