@@ -1,20 +1,20 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Text, Animated, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, Animated, StyleSheet, TouchableOpacity, ImageSourcePropType } from 'react-native';
 import { useTheme } from '../hooks/useTheme';
 
 interface StageConfig {
-  emoji: string;
-  emojiSize: number;
+  source: ImageSourcePropType;
+  assetScale: number;
   animStyle: 'wobble' | 'bounce' | 'pulse' | 'spin' | 'majestic';
   studyIcon: string;
 }
 
 const STAGE_CONFIGS: Record<number, StageConfig> = {
-  1: { emoji: '🥚', emojiSize: 72,  animStyle: 'wobble',   studyIcon: '📖' },
-  2: { emoji: '🐣', emojiSize: 82,  animStyle: 'bounce',   studyIcon: '✏️' },
-  3: { emoji: '🐥', emojiSize: 90,  animStyle: 'pulse',    studyIcon: '📖' },
-  4: { emoji: '🦊', emojiSize: 100, animStyle: 'spin',     studyIcon: '🎧' },
-  5: { emoji: '🐲', emojiSize: 110, animStyle: 'majestic', studyIcon: '🧘' },
+  1: { source: require('../assets/buddy/stage-1.png'), assetScale: 1.18, animStyle: 'wobble',   studyIcon: '📖' },
+  2: { source: require('../assets/buddy/stage-2.png'), assetScale: 1.18, animStyle: 'bounce',   studyIcon: '✏️' },
+  3: { source: require('../assets/buddy/stage-3.png'), assetScale: 1.12, animStyle: 'pulse',    studyIcon: '📖' },
+  4: { source: require('../assets/buddy/stage-4.png'), assetScale: 1.08, animStyle: 'spin',     studyIcon: '🎧' },
+  5: { source: require('../assets/buddy/stage-5.png'), assetScale: 1.06, animStyle: 'majestic', studyIcon: '🧘' },
 };
 
 interface Props {
@@ -174,22 +174,24 @@ export default function CompanionView({ evolutionStage, size = 200, isFocusing =
   const containerSize = size;
   const glowSize = containerSize * 0.82;
   const innerRingSize = containerSize * 0.7;
+  const assetSize = containerSize * config.assetScale;
 
-  const emojiNode = (
-    <Animated.Text
+  const buddyNode = (
+    <Animated.Image
+      source={config.source}
+      resizeMode="contain"
       style={[
-        styles.emoji,
+        styles.buddyImage,
         {
-          fontSize: config.emojiSize * (size / 200),
+          width: assetSize,
+          height: assetSize,
           opacity: isFocusing ? blinkAnim : 1,
           transform: isFocusing
             ? [{ scale: combinedScale }]
             : [{ scale: scaleAnim }, { rotate }],
         },
       ]}
-    >
-      {config.emoji}
-    </Animated.Text>
+    />
   );
 
   return (
@@ -228,10 +230,10 @@ export default function CompanionView({ evolutionStage, size = 200, isFocusing =
           delayLongPress={400}
           activeOpacity={1}
         >
-          {emojiNode}
+          {buddyNode}
         </TouchableOpacity>
       ) : (
-        emojiNode
+        buddyNode
       )}
 
       {isFocusing && (
@@ -256,8 +258,8 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     backgroundColor: 'transparent',
   },
-  emoji: {
-    textAlign: 'center',
+  buddyImage: {
+    alignSelf: 'center',
   },
   studyBadge: {
     position: 'absolute',
