@@ -91,7 +91,7 @@ export function useAmbientSound({ isRunning, isBreak }: Props) {
 
       try {
         const { sound } = await Audio.Sound.createAsync(
-          { uri: def.uri },
+          def.uri,
           { isLooping: true, volume: 0, shouldPlay: false }
         );
         soundRef.current = sound;

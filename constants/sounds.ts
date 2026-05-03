@@ -2,7 +2,7 @@ export interface AmbientSoundDef {
   id: string;
   label: string;
   icon: string;
-  uri: ReturnType<typeof require> | null;
+  uri: number | null;
 }
 
 export const AMBIENT_SOUNDS: AmbientSoundDef[] = [
