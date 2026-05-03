@@ -3,7 +3,7 @@
     "name": "Focus Buddy",
     "slug": "focus-buddy",
     "scheme": "focusbuddy",
-    "version": "1.0.0",
+    "version": "1.0.7",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "automatic",
@@ -27,7 +27,8 @@
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#1a1a2e"
       },
-      "package": "com.techbytestudio.focusbuddy"
+      "package": "com.techbytestudio.focusbuddy",
+      "versionCode": 7
     },
     "plugins": [
       "expo-router",
