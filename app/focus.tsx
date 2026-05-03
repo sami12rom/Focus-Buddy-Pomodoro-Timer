@@ -27,6 +27,7 @@ import { useTheme } from '../hooks/useTheme';
 import { getSessionTheme } from '../constants/colors';
 import { getLocalDateKey } from '../utils/date';
 import { DEFAULT_SESSION_TAG, SESSION_TAGS } from '../constants/sessionTags';
+import { AMBIENT_SOUNDS } from '../constants/sounds';
 import TimerDisplay from '../components/TimerDisplay';
 import CompanionView from '../components/CompanionView';
 import CircularTimer from '../components/CircularTimer';
@@ -63,7 +64,7 @@ export default function TimerScreen() {
   const { evolutionStage, applyFocusReward, applyBreakInteraction } = useCompanionStore();
   const { todaySessions, recordCompletedSession, recordLongBreakCompleted, markAchievementsNotified } = useStatsStore();
   const { addEntry } = useSessionHistoryStore();
-  const { soundEnabled, hapticsEnabled, keepAwakeEnabled, autoStartBreak } = useSettingsStore();
+  const { soundEnabled, hapticsEnabled, keepAwakeEnabled, autoStartBreak, ambientSound, setAmbientSound } = useSettingsStore();
 
   const [taskInput, setTaskInput] = useState('');
   const [rewardResult, setRewardResult] = useState<FocusRewardResult | null>(null);
@@ -422,6 +423,31 @@ export default function TimerScreen() {
   // ─────────────────────────────────────────────────────────────────────────
   // Render: Focus running phase
   // ─────────────────────────────────────────────────────────────────────────
+  const soundPicker = (
+    <View style={styles.soundPickerContainer}>
+      <Text style={[styles.soundPickerLabel, { color: t.textMuted }]}>Sound</Text>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.soundPickerContent}>
+        {AMBIENT_SOUNDS.map((s) => {
+          const active = ambientSound === s.id;
+          return (
+            <TouchableOpacity
+              key={s.id}
+              style={[styles.soundChip, { backgroundColor: active ? focusSessionTheme.accent : t.surface, borderColor: active ? focusSessionTheme.accent : t.border }]}
+              onPress={() => setAmbientSound(s.id)}
+              activeOpacity={0.8}
+              accessibilityLabel={`${s.label} ambient sound`}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+            >
+              <Text style={styles.soundChipIcon}>{s.icon}</Text>
+              <Text style={[styles.soundChipLabel, { color: active ? '#fff' : t.textSecondary }]}>{s.label}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
+
   if (isFocusRunning) {
     const totalMs = selectedFocusMinutes * 60_000;
     const timerSize = isLandscape ? 140 : 180;
@@ -459,6 +485,7 @@ export default function TimerScreen() {
                   <Text style={[styles.controlBtnText, { color: t.textSecondary }]}>Cancel</Text>
                 </TouchableOpacity>
               </View>
+              {soundPicker}
             </View>
           </>
         ) : (
@@ -478,6 +505,7 @@ export default function TimerScreen() {
                 <Text style={[styles.controlBtnText, { color: t.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
             </View>
+            {soundPicker}
           </>
         )}
 
@@ -808,5 +836,36 @@ const styles = StyleSheet.create({
     position: 'absolute',
     fontSize: 26,
     opacity: 0.45,
+  },
+  soundPickerContainer: {
+    width: '100%',
+    gap: 8,
+  },
+  soundPickerLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    textAlign: 'center',
+  },
+  soundPickerContent: {
+    gap: 8,
+    paddingHorizontal: 4,
+  },
+  soundChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    gap: 5,
+  },
+  soundChipIcon: {
+    fontSize: 14,
+  },
+  soundChipLabel: {
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
