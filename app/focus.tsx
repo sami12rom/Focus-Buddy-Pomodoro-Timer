@@ -13,6 +13,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as ScreenOrientation from 'expo-screen-orientation';
@@ -28,12 +29,12 @@ import { useTheme } from '../hooks/useTheme';
 import { getSessionTheme } from '../constants/colors';
 import { getLocalDateKey } from '../utils/date';
 import { DEFAULT_SESSION_TAG, SESSION_TAGS } from '../constants/sessionTags';
+import type { SessionTag } from '../constants/sessionTags';
 import { AMBIENT_SOUNDS } from '../constants/sounds';
 import { withAlpha } from '../utils/color';
 import TimerDisplay from '../components/TimerDisplay';
 import CompanionView from '../components/CompanionView';
 import CircularTimer from '../components/CircularTimer';
-import DrumPicker from '../components/DrumPicker';
 import RewardModal from '../components/RewardModal';
 import BreakEndModal from '../components/BreakEndModal';
 import BreathingAnimation from '../components/BreathingAnimation';
@@ -47,6 +48,18 @@ import { getAchievements } from '../utils/achievements';
 import * as Haptics from 'expo-haptics';
 import * as StoreReview from 'expo-store-review';
 
+const TASK_PLACEHOLDERS: Record<SessionTag, string> = {
+  Work: 'Reply to client feedback',
+  Study: 'Review biology notes',
+  Reading: 'Read one chapter',
+  Chores: 'Tidy the kitchen',
+  'Deep Work': 'Draft the launch plan',
+};
+
+const FOCUS_MINUTES_MIN = 1;
+const FOCUS_MINUTES_MAX = 120;
+const BREAK_MINUTES_MIN = 1;
+const BREAK_MINUTES_MAX = 30;
 
 export default function TimerScreen() {
   const router = useRouter();
@@ -67,7 +80,7 @@ export default function TimerScreen() {
   const { evolutionStage, applyFocusReward, applyBreakInteraction } = useCompanionStore();
   const { todaySessions, recordCompletedSession, recordLongBreakCompleted, markAchievementsNotified } = useStatsStore();
   const { addEntry } = useSessionHistoryStore();
-  const { soundEnabled, hapticsEnabled, keepAwakeEnabled, autoStartBreak, ambientSound, setAmbientSound } = useSettingsStore();
+  const { soundEnabled, hapticsEnabled, keepAwakeEnabled, autoStartBreak, ambientSounds, toggleAmbientSound } = useSettingsStore();
 
   const [taskInput, setTaskInput] = useState('');
   const [rewardResult, setRewardResult] = useState<FocusRewardResult | null>(null);
@@ -215,6 +228,14 @@ export default function TimerScreen() {
     scheduleSessionEndNotification(breakDurationMs, 'break');
   }
 
+  function adjustFocusMinutes(delta: number) {
+    setFocusMinutes(Math.max(FOCUS_MINUTES_MIN, Math.min(FOCUS_MINUTES_MAX, selectedFocusMinutes + delta)));
+  }
+
+  function adjustBreakMinutes(delta: number) {
+    setBreakMinutes(Math.max(BREAK_MINUTES_MIN, Math.min(BREAK_MINUTES_MAX, selectedBreakMinutes + delta)));
+  }
+
   // ── Focus running actions ─────────────────────────────────────────────────
   function handlePauseFocus() {
     pauseFocus();
@@ -310,7 +331,7 @@ export default function TimerScreen() {
   // Render: Setup phase
   // ─────────────────────────────────────────────────────────────────────────
   if (isIdle) {
-    const pickerBlock = (
+    const durationBlock = (
       <>
         {/* Quick presets */}
         <View style={styles.presetsRow}>
@@ -332,39 +353,90 @@ export default function TimerScreen() {
           })}
         </View>
 
-        {/* Duration pickers */}
-        <View style={styles.durationRow}>
-          <View style={styles.durationBlock}>
-            <Text style={[styles.durationLabel, { color: focusSessionTheme.accent }]}>Focus</Text>
-            <View style={styles.pickerRow}>
-              <DrumPicker value={selectedFocusMinutes} min={1} max={120} color={focusSessionTheme.accent} onChange={setFocusMinutes} />
-              <Text style={[styles.pickerUnit, { color: focusSessionTheme.accent }]}>min</Text>
+        {/* Duration controls */}
+        <View style={styles.durationList}>
+          <View style={[styles.durationControl, { backgroundColor: t.surface, borderColor: t.border }]}>
+            <View style={styles.durationTextBlock}>
+              <Text style={[styles.durationLabel, { color: focusSessionTheme.accent }]}>Focus</Text>
+              <Text style={[styles.durationValue, { color: t.textPrimary }]}>{selectedFocusMinutes} min</Text>
+            </View>
+            <View style={styles.stepper}>
+              <TouchableOpacity
+                style={[styles.stepperBtn, { borderColor: focusSessionTheme.accent }, selectedFocusMinutes <= FOCUS_MINUTES_MIN && styles.stepperBtnDisabled]}
+                onPress={() => adjustFocusMinutes(-5)}
+                disabled={selectedFocusMinutes <= FOCUS_MINUTES_MIN}
+                activeOpacity={0.75}
+                accessibilityLabel="Decrease focus duration by 5 minutes"
+                accessibilityRole="button"
+              >
+                <Ionicons name="remove" size={22} color={focusSessionTheme.accent} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.stepperBtn, { borderColor: focusSessionTheme.accent }, selectedFocusMinutes >= FOCUS_MINUTES_MAX && styles.stepperBtnDisabled]}
+                onPress={() => adjustFocusMinutes(5)}
+                disabled={selectedFocusMinutes >= FOCUS_MINUTES_MAX}
+                activeOpacity={0.75}
+                accessibilityLabel="Increase focus duration by 5 minutes"
+                accessibilityRole="button"
+              >
+                <Ionicons name="add" size={22} color={focusSessionTheme.accent} />
+              </TouchableOpacity>
             </View>
           </View>
-          <View style={[styles.durationDivider, { backgroundColor: t.border }]} />
-          <View style={styles.durationBlock}>
-            <Text style={[styles.durationLabel, { color: breakSessionTheme.accent }]}>Break</Text>
-            <View style={styles.pickerRow}>
-              <DrumPicker value={selectedBreakMinutes} min={1} max={30} color={breakSessionTheme.accent} onChange={setBreakMinutes} />
-              <Text style={[styles.pickerUnit, { color: breakSessionTheme.accent }]}>min</Text>
+
+          <View style={[styles.durationControl, { backgroundColor: t.surface, borderColor: t.border }]}>
+            <View style={styles.durationTextBlock}>
+              <Text style={[styles.durationLabel, { color: breakSessionTheme.accent }]}>Break</Text>
+              <Text style={[styles.durationValue, { color: t.textPrimary }]}>{selectedBreakMinutes} min</Text>
+            </View>
+            <View style={styles.stepper}>
+              <TouchableOpacity
+                style={[styles.stepperBtn, { borderColor: breakSessionTheme.accent }, selectedBreakMinutes <= BREAK_MINUTES_MIN && styles.stepperBtnDisabled]}
+                onPress={() => adjustBreakMinutes(-1)}
+                disabled={selectedBreakMinutes <= BREAK_MINUTES_MIN}
+                activeOpacity={0.75}
+                accessibilityLabel="Decrease break duration by 1 minute"
+                accessibilityRole="button"
+              >
+                <Ionicons name="remove" size={22} color={breakSessionTheme.accent} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.stepperBtn, { borderColor: breakSessionTheme.accent }, selectedBreakMinutes >= BREAK_MINUTES_MAX && styles.stepperBtnDisabled]}
+                onPress={() => adjustBreakMinutes(1)}
+                disabled={selectedBreakMinutes >= BREAK_MINUTES_MAX}
+                activeOpacity={0.75}
+                accessibilityLabel="Increase break duration by 1 minute"
+                accessibilityRole="button"
+              >
+                <Ionicons name="add" size={22} color={breakSessionTheme.accent} />
+              </TouchableOpacity>
             </View>
           </View>
         </View>
       </>
     );
 
-    const inputBlock = (
+    const intentionBlock = (
       <>
-        <View style={[styles.taskRow, { borderBottomColor: focusSessionTheme.accent + '60' }]}>
-          <Text style={[styles.taskHash, { color: focusSessionTheme.accent }]}>#</Text>
+        <View style={styles.intentionPrompt}>
+          <CompanionView evolutionStage={evolutionStage} size={116} />
+          <View style={[styles.speechBubble, { backgroundColor: t.surface, borderColor: focusSessionTheme.accent + '55' }]}>
+            <Text style={[styles.speechText, { color: t.textPrimary }]}>What are you working on?</Text>
+            <View style={[styles.speechTail, { borderRightColor: t.surface }]} />
+          </View>
+        </View>
+
+        <View style={[styles.taskCard, { backgroundColor: t.surface, borderColor: focusSessionTheme.accent + '66' }]}>
+          <Text style={[styles.taskLabel, { color: focusSessionTheme.accent }]}>Today's focus</Text>
           <TextInput
             style={[styles.taskInput, { color: t.textPrimary }]}
-            placeholder="What's your focus today?"
+            placeholder={TASK_PLACEHOLDERS[currentTag]}
             placeholderTextColor={t.textMuted}
             value={taskInput}
             onChangeText={setTaskInput}
             returnKeyType="done"
             maxLength={80}
+            accessibilityLabel="What are you working on?"
           />
         </View>
 
@@ -401,24 +473,31 @@ export default function TimerScreen() {
 
           {isLandscape ? (
             <View style={styles.landscapeSetupColumns}>
-              <View style={styles.landscapeCol}>{pickerBlock}</View>
-              <View style={[styles.landscapeCol, styles.landscapeColRight]}>{inputBlock}</View>
+              <View style={styles.landscapeCol}>{intentionBlock}</View>
+              <View style={[styles.landscapeCol, styles.landscapeColRight]}>{durationBlock}</View>
             </View>
           ) : (
             <>
-              {pickerBlock}
-              {inputBlock}
+              {intentionBlock}
+              {durationBlock}
             </>
           )}
         </Animated.ScrollView>
 
         <View style={[styles.setupFloatingBar, { backgroundColor: withAlpha(t.focusBg, 0.92), borderTopColor: t.border, paddingBottom: Math.max(24, insets.bottom + 8) }]}>
-          <TouchableOpacity style={[styles.startBtn, { backgroundColor: focusSessionTheme.accent }]} onPress={handleStart} activeOpacity={0.85} accessibilityLabel="Start focus session" accessibilityRole="button">
-            <Text style={styles.startBtnText}>Start Focus Session</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.startBreakBtn, { borderColor: breakSessionTheme.accent }]} onPress={handleStartBreak} activeOpacity={0.85} accessibilityLabel="Take a break" accessibilityRole="button">
-            <Text style={[styles.startBreakBtnText, { color: breakSessionTheme.accent }]}>Take a Break</Text>
-          </TouchableOpacity>
+          {taskInput.trim().length > 0 && (
+            <Text style={[styles.startIntentLine, { color: t.textMuted }]} numberOfLines={1}>
+              Focusing on: <Text style={{ color: t.textPrimary, fontWeight: '700' }}>{taskInput.trim()}</Text>
+            </Text>
+          )}
+          <View style={styles.setupActionRow}>
+            <TouchableOpacity style={[styles.startBtn, { backgroundColor: focusSessionTheme.accent }]} onPress={handleStart} activeOpacity={0.85} accessibilityLabel="Start focus session" accessibilityRole="button">
+              <Text style={styles.startBtnText}>Start Focus</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.startBreakBtn, { borderColor: breakSessionTheme.accent }]} onPress={handleStartBreak} activeOpacity={0.85} accessibilityLabel="Take a break" accessibilityRole="button">
+              <Text style={[styles.startBreakBtnText, { color: breakSessionTheme.accent }]}>Take Break</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAvoidingView>
     );
@@ -429,15 +508,15 @@ export default function TimerScreen() {
   // ─────────────────────────────────────────────────────────────────────────
   const soundPicker = (
     <View style={styles.soundPickerContainer}>
-      <Text style={[styles.soundPickerLabel, { color: t.textMuted }]}>Sound</Text>
+      <Text style={[styles.soundPickerLabel, { color: t.textMuted }]}>Sounds</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.soundPickerContent}>
         {AMBIENT_SOUNDS.map((s) => {
-          const active = ambientSound === s.id;
+          const active = s.id === 'none' ? ambientSounds.length === 0 : ambientSounds.includes(s.id);
           return (
             <TouchableOpacity
               key={s.id}
               style={[styles.soundChip, { backgroundColor: active ? focusSessionTheme.accent : t.surface, borderColor: active ? focusSessionTheme.accent : t.border }]}
-              onPress={() => setAmbientSound(s.id)}
+              onPress={() => toggleAmbientSound(s.id)}
               activeOpacity={0.8}
               accessibilityLabel={`${s.label} ambient sound`}
               accessibilityRole="button"
@@ -528,6 +607,22 @@ export default function TimerScreen() {
   // Render: Break running phase
   // ─────────────────────────────────────────────────────────────────────────
   const breakLabel = isCurrentBreakLong ? 'Long Break' : 'Short Break';
+  const breakGuidance = breakTimer.isPaused
+    ? 'Paused. When you resume, follow the circles again.'
+    : isCurrentBreakLong
+      ? 'Follow the circles: breathe in as they grow, breathe out as they shrink. Then stretch a little.'
+      : 'Follow the circles: breathe in as they grow, breathe out as they shrink.';
+
+  const breakPrompt = (
+    <View style={styles.breakPrompt}>
+      <CompanionView evolutionStage={evolutionStage} size={116} />
+      <View style={[styles.breakSpeechBubble, { backgroundColor: t.surface, borderColor: breakSessionTheme.accent + '55' }]}>
+        <Text style={[styles.breakSpeechText, { color: t.textPrimary }]}>{breakGuidance}</Text>
+        <View style={[styles.speechTail, { borderRightColor: t.surface }]} />
+      </View>
+    </View>
+  );
+
   const petBtn = (
     <TouchableOpacity
       style={[styles.petBtn, { backgroundColor: t.xpGold + '33', borderColor: t.xpGold }, breakInteracted && { backgroundColor: breakSessionTheme.accent + '33', borderColor: breakSessionTheme.accent }]}
@@ -559,7 +654,7 @@ export default function TimerScreen() {
       {isLandscape ? (
         <>
           <View style={styles.landscapeTimerCol}>
-            <CompanionView evolutionStage={evolutionStage} size={120} />
+            {breakPrompt}
             <TimerDisplay remainingMs={breakTimer.remainingMs} style={{ color: breakSessionTheme.accent }} />
           </View>
           <View style={styles.landscapeInfoCol}>
@@ -574,7 +669,7 @@ export default function TimerScreen() {
       ) : (
         <>
           <Text style={[styles.runningLabel, { color: t.textSecondary }]}>{breakLabel}</Text>
-          <CompanionView evolutionStage={evolutionStage} size={140} />
+          {breakPrompt}
           <BreathingAnimation color={breakSessionTheme.accent} isRunning={breakTimer.isRunning} />
           <View style={styles.breathingGap} />
           <TimerDisplay remainingMs={breakTimer.remainingMs} style={{ color: breakSessionTheme.accent }} />
@@ -602,7 +697,7 @@ const styles = StyleSheet.create({
   setupContent: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 56,
+    paddingTop: 76,
     paddingBottom: 16,
   },
   setupContentLandscape: {
@@ -662,46 +757,104 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
   },
-  pickerRow: {
+  intentionPrompt: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    marginBottom: 36,
+    gap: 12,
+    marginBottom: 18,
   },
-  pickerUnit: {
-    fontSize: 22,
-    fontWeight: '600',
-    marginTop: 4,
+  speechBubble: {
+    flex: 1,
+    maxWidth: 310,
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 18,
+    paddingVertical: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 2,
   },
-  taskRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    paddingBottom: 10,
-    marginBottom: 20,
-    gap: 8,
+  speechTail: {
+    position: 'absolute',
+    left: -10,
+    top: 32,
+    width: 0,
+    height: 0,
+    borderTopWidth: 9,
+    borderBottomWidth: 9,
+    borderRightWidth: 10,
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
   },
-  taskHash: {
-    fontSize: 18,
+  speechText: {
+    fontSize: 21,
+    lineHeight: 27,
     fontWeight: '700',
   },
-  taskInput: {
-    flex: 1,
-    fontSize: 16,
-    paddingVertical: 4,
-  },
-  durationRow: {
+  breakPrompt: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 0,
+    gap: 12,
+    width: '100%',
+    maxWidth: 430,
+  },
+  breakSpeechBubble: {
+    flex: 1,
+    maxWidth: 300,
+    borderWidth: 1,
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+  },
+  breakSpeechText: {
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: '600',
+  },
+  taskCard: {
+    borderWidth: 1.5,
+    borderRadius: 20,
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 16,
+    marginBottom: 16,
+  },
+  taskLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  taskInput: {
+    fontSize: 24,
+    lineHeight: 30,
+    fontWeight: '700',
+    paddingVertical: 6,
+    minHeight: 44,
+  },
+  durationList: {
+    gap: 10,
     marginBottom: 8,
   },
-  durationBlock: {
-    flex: 1,
+  durationControl: {
+    minHeight: 76,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  durationTextBlock: {
+    flex: 1,
+    gap: 4,
   },
   durationLabel: {
     fontSize: 12,
@@ -709,11 +862,24 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
-  durationDivider: {
-    width: 1,
-    height: 80,
-    marginHorizontal: 8,
-    opacity: 0.4,
+  durationValue: {
+    fontSize: 24,
+    fontWeight: '800',
+  },
+  stepper: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  stepperBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperBtnDisabled: {
+    opacity: 0.35,
   },
   sessionCount: {
     fontSize: 14,
@@ -762,32 +928,46 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 24,
     borderTopWidth: 1,
-    gap: 10,
+    gap: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.08,
     shadowRadius: 8,
     elevation: 8,
   },
+  startIntentLine: {
+    fontSize: 13,
+    textAlign: 'center',
+    marginBottom: 2,
+  },
+  setupActionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
   startBtn: {
-    borderRadius: 20,
-    paddingVertical: 18,
+    flex: 1.25,
+    minHeight: 52,
+    borderRadius: 18,
+    paddingVertical: 14,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   startBtnText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
   },
   startBreakBtn: {
-    borderRadius: 20,
+    flex: 1,
+    minHeight: 52,
+    borderRadius: 18,
     paddingVertical: 14,
     alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1.5,
-    marginTop: 12,
   },
   startBreakBtnText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
   },
   runningLabel: {

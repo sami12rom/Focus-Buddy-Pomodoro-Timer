@@ -1,5 +1,7 @@
+export type AmbientSoundId = 'none' | 'rain' | 'coffee' | 'whitenoise' | 'forest' | 'brownnoise';
+
 export interface AmbientSoundDef {
-  id: string;
+  id: AmbientSoundId;
   label: string;
   icon: string;
   uri: number | null;
@@ -13,8 +15,6 @@ export const AMBIENT_SOUNDS: AmbientSoundDef[] = [
   { id: 'forest',     label: 'Forest',      icon: '🌲', uri: require('../assets/sounds/audiopapkin-forest-ambience-296528.mp3') },
   { id: 'brownnoise', label: 'Brown Noise', icon: '🎵', uri: require('../assets/sounds/dreamingrelaxation-brown-noise-by-digitalspa-170337.mp3') },
 ];
-
-export type AmbientSoundId = 'none' | 'rain' | 'coffee' | 'whitenoise' | 'forest' | 'brownnoise';
 
 export const VOLUME_STEPS = [
   { label: '25%',  value: 0.25 },

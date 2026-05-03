@@ -163,10 +163,10 @@ Prioritised by impact and implementation effort. Each phase builds on the previo
 
 | # | Task | Notes |
 |---|------|-------|
-| 1 | Add ambient sound files | Source from Pixabay / Freesound. Drop MP3s in `assets/sounds/`, update `uri` fields in `constants/sounds.ts` |
+| ✅ | ~~Add ambient sound files~~ | Done — 6 MP3s in `assets/sounds/`, wired in `constants/sounds.ts` |
+| ✅ | ~~Fix `focusTime` showing blank~~ | Done — `stats.tsx` shows `0m` explicitly |
 | 2 | App Store screenshots + description | Include ADHD keywords: "ADHD", "focus", "neurodivergent", "body doubling". No code change needed |
 | 3 | First manual Play Store submit | Unlocks the CI/CD API so automated publishing works going forward |
-| 4 | Fix `focusTime` showing blank | `stats.tsx` displays `0m` when both `hours` and `mins` are 0 — show `0m` explicitly |
 
 ---
 

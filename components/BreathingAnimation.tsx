@@ -5,8 +5,6 @@ import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
-  withRepeat,
-  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 
@@ -16,7 +14,7 @@ interface Props {
 }
 
 const INHALE_MS = 4000;
-const EXHALE_MS = 4000;
+const EXHALE_MS = 6000;
 
 export default function BreathingAnimation({ color, isRunning }: Props) {
   const scale = useSharedValue(0.6);
@@ -29,22 +27,32 @@ export default function BreathingAnimation({ color, isRunning }: Props) {
       return;
     }
 
-    setPhase('in');
-    scale.value = withRepeat(
-      withSequence(
-        withTiming(1.0, { duration: INHALE_MS, easing: Easing.inOut(Easing.ease) }),
-        withTiming(0.6, { duration: EXHALE_MS, easing: Easing.inOut(Easing.ease) }),
-      ),
-      -1,
-      false,
-    );
+    let isActive = true;
+    let exhaleTimeout: ReturnType<typeof setTimeout> | null = null;
+    let inhaleTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    const interval = setInterval(() => {
-      setPhase((p) => (p === 'in' ? 'out' : 'in'));
-    }, INHALE_MS);
+    function startInhale() {
+      if (!isActive) return;
+      setPhase('in');
+      scale.value = withTiming(1.0, { duration: INHALE_MS, easing: Easing.inOut(Easing.ease) });
+      exhaleTimeout = setTimeout(startExhale, INHALE_MS);
+    }
+
+    function startExhale() {
+      if (!isActive) return;
+      setPhase('out');
+      scale.value = withTiming(0.6, { duration: EXHALE_MS, easing: Easing.inOut(Easing.ease) });
+      inhaleTimeout = setTimeout(startInhale, EXHALE_MS);
+    }
+
+    cancelAnimation(scale);
+    scale.value = 0.6;
+    startInhale();
 
     return () => {
-      clearInterval(interval);
+      isActive = false;
+      if (exhaleTimeout) clearTimeout(exhaleTimeout);
+      if (inhaleTimeout) clearTimeout(inhaleTimeout);
       cancelAnimation(scale);
     };
   }, [isRunning]); // eslint-disable-line react-hooks/exhaustive-deps

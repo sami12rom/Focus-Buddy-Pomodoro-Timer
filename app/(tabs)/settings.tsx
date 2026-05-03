@@ -19,9 +19,9 @@ export default function SettingsScreen() {
   const { selectedLongBreakMinutes, setLongBreakMinutes } = useSessionStore();
   const {
     soundEnabled, hapticsEnabled, keepAwakeEnabled, autoStartBreak,
-    ambientSound, ambientVolume, playAmbientDuringBreak,
+    ambientSounds, ambientVolume, playAmbientDuringBreak,
     setSoundEnabled, setHapticsEnabled, setKeepAwakeEnabled, setAutoStartBreak,
-    setAmbientSound, setAmbientVolume, setPlayAmbientDuringBreak,
+    toggleAmbientSound, setAmbientVolume, setPlayAmbientDuringBreak,
   } = useSettingsStore();
   const { dailySessionGoal, dailyMinuteGoal, setDailySessionGoal, setDailyMinuteGoal } = useGoalStore();
 
@@ -170,14 +170,18 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* ── Ambient Sound ── */}
-      <Text style={[styles.sectionLabel, { color: t.textMuted }]}>Ambient Sound</Text>
+      {/* ── Ambient Sounds ── */}
+      <Text style={[styles.sectionLabel, { color: t.textMuted }]}>Ambient Sounds</Text>
 
       <View style={[styles.card, { backgroundColor: t.surface }]}>
+        <Text style={[styles.ambientHint, { color: t.textMuted }]}>
+          Choose up to 2 layers
+        </Text>
+
         {/* Sound picker */}
         <View style={styles.ambientPicker}>
           {AMBIENT_SOUNDS.map((s) => {
-            const active = ambientSound === s.id;
+            const active = s.id === 'none' ? ambientSounds.length === 0 : ambientSounds.includes(s.id);
             const disabled = s.id !== 'none' && s.uri === null;
             return (
               <TouchableOpacity
@@ -189,7 +193,7 @@ export default function SettingsScreen() {
                     opacity: disabled ? 0.4 : 1,
                   },
                 ]}
-                onPress={() => !disabled && setAmbientSound(s.id)}
+                onPress={() => !disabled && toggleAmbientSound(s.id)}
                 activeOpacity={disabled ? 1 : 0.75}
                 accessibilityLabel={`${s.label} sound${disabled ? ', coming soon' : ''}`}
                 accessibilityRole="button"
@@ -546,6 +550,12 @@ const styles = StyleSheet.create({
   resetLabel: { fontSize: 15, fontWeight: '600' },
   resetDesc: { fontSize: 12 },
   // Ambient sound
+  ambientHint: {
+    fontSize: 12,
+    fontWeight: '500',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+  },
   ambientPicker: {
     flexDirection: 'row',
     flexWrap: 'wrap',
