@@ -25,13 +25,18 @@ export default function DrumPicker({ value, min, max, onChange, color }: Props) 
   // displayValue tracks scroll position in real-time so opacity/size animate as you scroll
   const [displayValue, setDisplayValue] = useState(value);
 
+  const isMountRef = useRef(true);
+
   useEffect(() => {
+    const isMount = isMountRef.current;
+    isMountRef.current = false;
+    setDisplayValue(value);
     const index = value - min;
     const t = setTimeout(() => {
-      scrollRef.current?.scrollTo({ y: index * ITEM_HEIGHT, animated: false });
+      scrollRef.current?.scrollTo({ y: index * ITEM_HEIGHT, animated: !isMount });
     }, 50);
     return () => clearTimeout(t);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [value, min]);
 
   const offsetToValue = useCallback(
     (offsetY: number): number => {

@@ -13,6 +13,7 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
@@ -28,6 +29,7 @@ import { getSessionTheme } from '../constants/colors';
 import { getLocalDateKey } from '../utils/date';
 import { DEFAULT_SESSION_TAG, SESSION_TAGS } from '../constants/sessionTags';
 import { AMBIENT_SOUNDS } from '../constants/sounds';
+import { withAlpha } from '../utils/color';
 import TimerDisplay from '../components/TimerDisplay';
 import CompanionView from '../components/CompanionView';
 import CircularTimer from '../components/CircularTimer';
@@ -49,6 +51,7 @@ import * as StoreReview from 'expo-store-review';
 export default function TimerScreen() {
   const router = useRouter();
   const t = useTheme();
+  const insets = useSafeAreaInsets();
 
   const {
     status, reset,
@@ -385,14 +388,6 @@ export default function TimerScreen() {
         </View>
 
         <Text style={[styles.sessionCount, { color: t.textMuted }]}>Session #{todaySessions + 1}</Text>
-
-        <TouchableOpacity style={[styles.startBtn, { backgroundColor: focusSessionTheme.accent }]} onPress={handleStart} activeOpacity={0.85} accessibilityLabel="Start focus session" accessibilityRole="button">
-          <Text style={styles.startBtnText}>Start Focus Session</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={[styles.startBreakBtn, { borderColor: breakSessionTheme.accent }]} onPress={handleStartBreak} activeOpacity={0.85} accessibilityLabel="Take a break" accessibilityRole="button">
-          <Text style={[styles.startBreakBtnText, { color: breakSessionTheme.accent }]}>Take a Break</Text>
-        </TouchableOpacity>
       </>
     );
 
@@ -416,6 +411,15 @@ export default function TimerScreen() {
             </>
           )}
         </Animated.ScrollView>
+
+        <View style={[styles.setupFloatingBar, { backgroundColor: withAlpha(t.focusBg, 0.92), borderTopColor: t.border, paddingBottom: Math.max(24, insets.bottom + 8) }]}>
+          <TouchableOpacity style={[styles.startBtn, { backgroundColor: focusSessionTheme.accent }]} onPress={handleStart} activeOpacity={0.85} accessibilityLabel="Start focus session" accessibilityRole="button">
+            <Text style={styles.startBtnText}>Start Focus Session</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.startBreakBtn, { borderColor: breakSessionTheme.accent }]} onPress={handleStartBreak} activeOpacity={0.85} accessibilityLabel="Take a break" accessibilityRole="button">
+            <Text style={[styles.startBreakBtnText, { color: breakSessionTheme.accent }]}>Take a Break</Text>
+          </TouchableOpacity>
+        </View>
       </KeyboardAvoidingView>
     );
   }
@@ -599,7 +603,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 56,
-    paddingBottom: 64,
+    paddingBottom: 16,
   },
   setupContentLandscape: {
     flexGrow: 1,
@@ -752,6 +756,18 @@ const styles = StyleSheet.create({
   tagChipText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  setupFloatingBar: {
+    paddingHorizontal: 24,
+    paddingTop: 10,
+    paddingBottom: 24,
+    borderTopWidth: 1,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 8,
   },
   startBtn: {
     borderRadius: 20,
