@@ -8,8 +8,8 @@ A gamified Pomodoro timer for iOS and Android where a virtual companion evolves 
 
 ## Features
 
-- **Pomodoro timer** — configurable focus and break durations via a scrollable drum picker
-- **Evolving companion** — 5 evolution stages (Egg → Baby → Child → Teen → Adult) driven by XP and level
+- **Pomodoro timer** — configurable focus and break durations via preset chips and stepper controls
+- **Evolving companion** — 5 custom PNG evolution stages (Egg → Hatchling → Baby → Teen → Adult) driven by XP and level
 - **Automatic Pomodoro loop** — break starts automatically after focus completes; long break triggers after every 4th session
 - **Session history** — last 100 completed sessions stored; 7-day bar chart and recent list in Stats
 - **Daily focus goals** — configurable session and minute targets with progress on Home and Stats
@@ -22,8 +22,8 @@ A gamified Pomodoro timer for iOS and Android where a virtual companion evolves 
 - **4 themes** — Cosmic Night, Kawaii Dusk, Ember Dark, Retro Pixel; persisted per user
 - **Behavior toggles** — Sound, Haptics, Keep Awake; individually toggleable in Settings
 - **Circular SVG timer** — progress ring with companion inside during focus running phase
-- **Guided break breathing** — animated expand/contract circle with "breathe in / breathe out" cues during break countdown
-- **Ambient sounds** — 6 sound options (rain, coffee, white noise, forest, brown noise) with fade in/out, volume control, and optional play-during-breaks toggle
+- **Guided break breathing** — animated expand/contract circle with synced "breathe in / breathe out" cues and companion guidance during break countdown
+- **Ambient sound mixing** — layer up to 2 ambient sounds at once (rain, coffee, white noise, forest, brown noise) with fade in/out, volume balancing, and optional play-during-breaks toggle
 - **Focus insights** — most productive day, peak focus time, 14-day consistency %, average session length, weekday vs weekend comparison
 - **Share stats card** — shareable PNG card with companion stage, streak, sessions, level, and focus time
 - **Daily companion dialogue** — context-aware speech bubble messages (absence, happiness, streak milestones, goal progress, time-of-day greetings)
@@ -65,9 +65,9 @@ app/
   privacy.tsx          — In-app privacy policy
 
 components/
-  CompanionView.tsx      — Animated companion (5 evolution stages, bounce/tap animations)
+  CompanionView.tsx      — Animated PNG companion (5 evolution stages, bounce/tap animations)
   CircularTimer.tsx      — SVG ring progress timer with companion inside
-  DrumPicker.tsx         — Scrollable drum-roll number picker
+  DrumPicker.tsx         — Legacy scrollable drum-roll number picker
   TimerDisplay.tsx       — MM:SS text display
   XPBar.tsx              — XP progress bar with level labels
   MoodBadge.tsx          — Happiness emoji badge (happy / neutral / tired)
@@ -84,7 +84,7 @@ store/
   statsStore.ts          — Total sessions, streak, best streak, focus minutes, unlocked achievements
   sessionStore.ts        — Timer status, durations, cycle counter, active session snapshot
   sessionHistoryStore.ts — Last 100 completed sessions (date, task, tag, duration)
-  settingsStore.ts       — Sound, haptics, keep-awake, auto-start break, ambient sound + volume
+  settingsStore.ts       — Sound, haptics, keep-awake, auto-start break, ambient sound layers + volume
   themeStore.ts          — Active theme ID
   goalStore.ts           — Daily session goal and daily minute goal
 
@@ -98,7 +98,13 @@ constants/
 hooks/
   useTheme.ts        — Returns active AppTheme from themeStore
   useTimer.ts        — Wall-clock timer (Date.now() − startedAt − pausedMs); AppState sync
-  useAmbientSound.ts — Loads, plays, fades, and unloads ambient audio via expo-av
+  useAmbientSound.ts — Loads, mixes, fades, and unloads ambient audio layers via expo-av
+
+assets/
+  buddy/        — 5 transparent PNG companion evolution stage assets
+  sounds/       — Ambient sound MP3 files
+  images/       — App icon and splash/adaptive image assets
+  store/        — Store listing artwork
 
 utils/
   achievements.ts    — 20 achievement definitions with permanence via unlockedIds
@@ -148,7 +154,7 @@ npm test
 
 **Achievement permanence** — once an achievement is unlocked its ID is stored in `unlockedAchievements`. The `getAchievements` helper checks this array first, so achievements stay unlocked even when the underlying metric resets (e.g. streak breaks back to 0).
 
-**Ambient audio** — `useAmbientSound` sets `playsInSilentModeIOS: true` and `staysActiveInBackground: true` on mount. Volume fades use a 50ms `setInterval` ramp to avoid abrupt cuts. A `volumeRef` keeps the latest volume accessible inside async callbacks without stale closures.
+**Ambient audio** — `useAmbientSound` sets `playsInSilentModeIOS: true` and `staysActiveInBackground: true` on mount. It can run up to 2 ambient sound layers at once, balances combined volume with a simple mix gain, and uses 50ms fade ramps to avoid abrupt cuts.
 
 **Companion dialogue** — `getCompanionMessage` evaluates 8 priority tiers in order on every home screen focus. The fallback pool uses a day-seeded index so the message is stable throughout the day but changes daily without any server call.
 
@@ -175,10 +181,10 @@ Prioritised by impact and implementation effort. Each phase builds on the previo
 
 | # | Feature | Why |
 |---|---------|-----|
-| 5 | **Pre-session intention UX** | Surface the task input more prominently before the timer starts. Make the pet ask "What are you working on?" — sessions feel hollow without it |
+| ✅ | ~~Pre-session intention UX~~ | Done — companion asks "What are you working on?", task input is primary, tag-specific examples guide the placeholder |
 | 6 | **Post-session reflection** | One-line "What did you accomplish?" input in `RewardModal`. Store alongside session history. Low build cost, high perceived value |
 | 7 | **CSV data export** | Button in Settings → generate CSV from `sessionHistoryStore` → share via `expo-sharing` (already installed) |
-| 8 | **Ambient sound mixing** | Allow 2 sounds to layer simultaneously (e.g. rain + brown noise). Extend `useAmbientSound` to manage 2 instances |
+| ✅ | ~~Ambient sound mixing~~ | Done — up to 2 selected sound layers, `None` clears selection, `useAmbientSound` manages multiple `Audio.Sound` instances |
 
 ---
 
@@ -208,6 +214,6 @@ Prioritised by impact and implementation effort. Each phase builds on the previo
 
 ### Strategic Notes
 
-- **The pet system is an underexploited moat.** Study Bunny has the highest user sentiment in academic research on gamified focus apps purely because of pet emotional attachment. Focus Buddy's evolution system is more sophisticated — the gap is that the pet isn't yet present in widgets, breaks, or the stats experience. Bringing the pet to more surfaces is higher leverage than adding any new feature.
+- **The pet system is an underexploited moat.** Study Bunny has the highest user sentiment in academic research on gamified focus apps purely because of pet emotional attachment. Focus Buddy's evolution system is more sophisticated, and the pet now appears in the pre-session and break rituals. Bringing the pet further into widgets and stats remains higher leverage than adding generic productivity features.
 - **App blocking is the clearest path to monetization.** Without it, the premium offering relies entirely on cosmetic unlocks. Every successfully monetised timer app has app blocking behind the paywall.
 - **ADHD positioning costs nothing.** Tiimo won Apple's iPhone App of the Year 2025 on ADHD positioning alone. Focus Buddy's soft gamification and companion are inherently ADHD-friendly. A few App Store keyword and screenshot changes could meaningfully move downloads with zero engineering.
