@@ -38,3 +38,6 @@ jobs:
         env:
           EAS_BUILD_NO_EXPO_GO_WARNING: true
         run: eas build --platform android --profile production --non-interactive
+
+      - name: Submit to Play Store (EAS)
+        run: eas submit --platform android --profile production --latest --non-interactive
