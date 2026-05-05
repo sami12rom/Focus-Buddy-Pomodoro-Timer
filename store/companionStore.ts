@@ -14,12 +14,20 @@ import { getLevelForXP, getEvolutionStage } from '../utils/xp';
 import { shouldApplyDecay, applyDecay, canPetToday } from '../utils/gameLogic';
 import { getLocalDateKey } from '../utils/date';
 
+export type EvolutionStage = 1 | 2 | 3 | 4 | 5;
+
+export interface PendingEvolution {
+  fromStage: EvolutionStage;
+  toStage: EvolutionStage;
+}
+
 interface CompanionState {
   name: string;
   level: number;
   xp: number;
   happiness: number;
-  evolutionStage: 1 | 2 | 3 | 4 | 5;
+  evolutionStage: EvolutionStage;
+  pendingEvolution: PendingEvolution | null;
   createdAt: string;
   isHydrated: boolean;
   hasCompletedOnboarding: boolean;
@@ -34,11 +42,12 @@ export interface FocusRewardResult {
   leveledUp: boolean;
   newLevel: number;
   evolved: boolean;
-  newStage: 1 | 2 | 3 | 4 | 5;
+  newStage: EvolutionStage;
 }
 
 interface CompanionActions {
   applyFocusReward: () => FocusRewardResult;
+  clearPendingEvolution: () => void;
   applyBreakInteraction: () => void;
   setName: (name: string) => void;
   setHydrated: () => void;
@@ -54,6 +63,7 @@ const initialState: Omit<CompanionState, 'isHydrated'> = {
   xp: 0,
   happiness: INITIAL_HAPPINESS,
   evolutionStage: 1,
+  pendingEvolution: null,
   createdAt: new Date().toISOString(),
   hasCompletedOnboarding: false,
   lastPetDate: null,
@@ -76,8 +86,12 @@ export const useCompanionStore = create<CompanionState & CompanionActions>()(
         const newHappiness = Math.min(state.happiness + HAPPINESS_PER_SESSION, HAPPINESS_MAX);
         const newLevel = getLevelForXP(newXP);
         const newStage = getEvolutionStage(newLevel);
+        const pendingEvolution =
+          newStage > oldStage
+            ? { fromStage: oldStage, toStage: newStage }
+            : state.pendingEvolution;
 
-        set({ xp: newXP, happiness: newHappiness, level: newLevel, evolutionStage: newStage });
+        set({ xp: newXP, happiness: newHappiness, level: newLevel, evolutionStage: newStage, pendingEvolution });
 
         return {
           xpGained: XP_PER_SESSION,
@@ -88,6 +102,8 @@ export const useCompanionStore = create<CompanionState & CompanionActions>()(
           newStage,
         };
       },
+
+      clearPendingEvolution: () => set({ pendingEvolution: null }),
 
       applyBreakInteraction: () => {
         const { happiness } = get();

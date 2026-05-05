@@ -92,6 +92,7 @@ export default function TimerScreen() {
   const [autoStartCountdown, setAutoStartCountdown] = useState<number | undefined>(undefined);
   const [showFocusExtensionPrompt, setShowFocusExtensionPrompt] = useState(false);
   const [showSoundPickerModal, setShowSoundPickerModal] = useState(false);
+  const [breakPetAnimationTrigger, setBreakPetAnimationTrigger] = useState(0);
   const rewardDismissedRef = useRef(false);
   const extensionPromptShownRef = useRef(false);
 
@@ -331,6 +332,11 @@ export default function TimerScreen() {
     if (breakInteracted) return;
     interactDuringBreak();
     applyBreakInteraction();
+  }
+
+  function handlePetButtonPress() {
+    handlePetCompanion();
+    setBreakPetAnimationTrigger((currentTrigger) => currentTrigger + 1);
   }
 
   function handleSkipBreak() {
@@ -763,7 +769,12 @@ export default function TimerScreen() {
 
   const breakPrompt = (
     <View style={styles.breakPrompt}>
-      <CompanionView evolutionStage={evolutionStage} size={116} />
+      <CompanionView
+        evolutionStage={evolutionStage}
+        size={116}
+        tapTrigger={breakPetAnimationTrigger}
+        onTap={handlePetCompanion}
+      />
       <View style={[styles.breakSpeechBubble, { backgroundColor: t.surface, borderColor: breakSessionTheme.accent + '55' }]}>
         <Text style={[styles.breakSpeechText, { color: t.textPrimary }]}>{breakGuidance}</Text>
         <View style={[styles.speechTail, { borderRightColor: t.surface }]} />
@@ -774,7 +785,7 @@ export default function TimerScreen() {
   const petBtn = (
     <TouchableOpacity
       style={[styles.petBtn, { backgroundColor: t.xpGold + '33', borderColor: t.xpGold }, breakInteracted && { backgroundColor: breakSessionTheme.accent + '33', borderColor: breakSessionTheme.accent }]}
-      onPress={handlePetCompanion}
+      onPress={handlePetButtonPress}
       disabled={breakInteracted}
       activeOpacity={0.8}
       accessibilityLabel={breakInteracted ? 'Companion is happy' : 'Pet your companion'}

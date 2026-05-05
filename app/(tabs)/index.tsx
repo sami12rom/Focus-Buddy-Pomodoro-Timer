@@ -40,7 +40,7 @@ export default function HomeScreen() {
   const {
     name, level, xp, happiness, evolutionStage, isHydrated,
     hasCompletedOnboarding, completeOnboarding, petCompanion,
-    applyFocusReward,
+    applyFocusReward, pendingEvolution, clearPendingEvolution,
   } = useCompanionStore();
   const {
     todaySessions,
@@ -62,6 +62,7 @@ export default function HomeScreen() {
   const [recoveryRewardResult, setRecoveryRewardResult] = useState<FocusRewardResult | null>(null);
   const [recoveryRewardTask, setRecoveryRewardTask] = useState('');
   const [showRecoveryReward, setShowRecoveryReward] = useState(false);
+  const [isHomeFocused, setIsHomeFocused] = useState(false);
   const today = getLocalDateKey();
   const todayFocusMinutes = getTodayFocusMinutes(entries, today);
   const sessionGoalProgress = goalProgress(todaySessions, dailySessionGoal);
@@ -69,6 +70,13 @@ export default function HomeScreen() {
 
   // Only check recovery once per app launch, after store hydrates
   const recoveryCheckedRef = useRef(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      setIsHomeFocused(true);
+      return () => setIsHomeFocused(false);
+    }, [])
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -240,6 +248,8 @@ export default function HomeScreen() {
           )}
           <CompanionView
             evolutionStage={evolutionStage}
+            evolutionTransition={isHomeFocused ? pendingEvolution : null}
+            onEvolutionTransitionComplete={clearPendingEvolution}
             size={220}
             onTap={handleTapCompanion}
             onLongPress={handlePetCompanion}
