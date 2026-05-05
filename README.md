@@ -164,6 +164,21 @@ npm test
 
 Prioritised by impact and implementation effort. Each phase builds on the previous.
 
+### Field Test Fixes — 2026-05-05
+*Notes captured from real focus-session use. These are polish fixes before the next broad release.*
+
+| Area | Issue / Request | Notes |
+|------|-----------------|-------|
+| Audio | Coffee shop loop ends abruptly, then restarts quietly | Edit or replace the source loop; add a seamless loop point and test the fade so the restart is invisible |
+| Audio | Ambient sounds are not matched in loudness | Normalize perceived loudness across all bundled MP3s; keep per-sound gain overrides if needed |
+| Break UX | ✅ Breathe in / breathe out feels too quick | Done — breathing now uses four synced phases: breathe in, hold, breathe out, rest |
+| Break UX | Add relaxing audio for break time | Consider a separate break-only sound option: breathing guide, soft chime bed, or licensed relaxing music |
+| Text input | ✅ Today-focus task input does not autocorrect typos | Done — intention input now enables autocorrect, spellcheck, and sentence capitalization |
+| Landscape | Focus setup screen requires scrolling | Create a compact landscape layout so timer setup, intention input, and actions fit in one viewport |
+| Landscape | Settings → start focus page needs to fit without scrolling | Reduce vertical spacing and use a denser two-column landscape layout |
+| Landscape | Sound options look like a horizontal scroll during focus | Replace landscape sound scroller with compact chips, segmented menu, or a small modal picker |
+| Focus completion | Focus ends and moves toward break too quickly | Add an end-of-focus grace state with one-tap extension buttons (+5 min / +10 min) before break starts |
+
 ### Phase 1 — Ship Ready
 *Must be done before the first public release. No new features.*
 
@@ -195,7 +210,7 @@ Prioritised by impact and implementation effort. Each phase builds on the previo
 |---|---------|-----|
 | 9  | **Home screen widget + Live Activity** | Timer countdown visible without opening the app. Dynamic Island support. Most requested feature across all competing apps |
 | 10 | **Task list with Pomodoro estimates** | Create tasks, set estimated session count, link a task to each focus session. Time accumulates against the task. Your session tags are already halfway there |
-| 11 | **Lofi music stream** | Integrate a licensed lofi track bundle or free stream as a sound option. Lofi music apps are the fastest-growing focus app category right now |
+| 11 | **Lofi / relaxing music** | Add licensed local lofi loops or relaxing break music as sound options. Prefer bundled licensed tracks over an internet stream for reliability and licensing clarity |
 | 12 | **Monetization / premium tier** | Define free vs. paid. Recommended: timer + companion free; ambient sounds + app blocking + widgets as Pro. Set up RevenueCat before building Phase 4 features |
 
 ---

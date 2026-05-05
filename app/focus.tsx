@@ -435,6 +435,10 @@ export default function TimerScreen() {
             value={taskInput}
             onChangeText={setTaskInput}
             returnKeyType="done"
+            autoCorrect
+            spellCheck
+            autoCapitalize="sentences"
+            textContentType="none"
             maxLength={80}
             accessibilityLabel="What are you working on?"
           />
