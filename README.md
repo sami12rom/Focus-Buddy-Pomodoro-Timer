@@ -180,7 +180,7 @@ Prioritised by impact and implementation effort. Each phase builds on the previo
 | Break UX | Add relaxing audio for break time | Consider a separate break-only sound option: breathing guide, soft chime bed, or licensed relaxing music |
 | Text input | ✅ Today-focus task input does not autocorrect typos | Done — intention input now enables autocorrect, spellcheck, and sentence capitalization |
 | Landscape | ✅ Focus screen requires scrolling | Done — active focus landscape uses a tighter two-column layout with smaller timer text and compact spacing |
-| Landscape | Focus setup screen needs to fit without scrolling | Reduce vertical spacing and use a denser two-column setup layout |
+| Landscape | ✅ Focus setup screen needs to fit without scrolling | Done — landscape setup uses compact two-column controls with actions inside the right column instead of a bottom bar |
 | Landscape | ✅ Sound options look like a horizontal scroll during focus | Done — landscape focus now shows a compact sound summary that opens a modal picker |
 | Focus completion | ✅ Focus ends and moves toward break too quickly | Done — final-minute prompt offers +5 min / +10 min while the timer continues normally if ignored |
 

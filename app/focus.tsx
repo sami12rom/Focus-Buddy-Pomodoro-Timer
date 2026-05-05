@@ -365,84 +365,95 @@ export default function TimerScreen() {
   // Render: Setup phase
   // ─────────────────────────────────────────────────────────────────────────
   if (isIdle) {
+    const setupActionButtons = (
+      <View style={[styles.setupActionRow, isLandscape && styles.setupActionRowLandscape]}>
+        <TouchableOpacity style={[styles.startBtn, isLandscape && styles.startBtnLandscape, { backgroundColor: focusSessionTheme.accent }]} onPress={handleStart} activeOpacity={0.85} accessibilityLabel="Start focus session" accessibilityRole="button">
+          <Text style={[styles.startBtnText, isLandscape && styles.startBtnTextLandscape]}>Start Focus</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.startBreakBtn, isLandscape && styles.startBreakBtnLandscape, { borderColor: breakSessionTheme.accent }]} onPress={handleStartBreak} activeOpacity={0.85} accessibilityLabel="Take a break" accessibilityRole="button">
+          <Text style={[styles.startBreakBtnText, isLandscape && styles.startBreakBtnTextLandscape, { color: breakSessionTheme.accent }]}>Take Break</Text>
+        </TouchableOpacity>
+      </View>
+    );
+
     const durationBlock = (
       <>
         {/* Quick presets */}
-        <View style={styles.presetsRow}>
+        <View style={[styles.presetsRow, isLandscape && styles.presetsRowLandscape]}>
           {PRESETS.map((p) => {
             const isActive = selectedFocusMinutes === p.focus && selectedBreakMinutes === p.break;
             return (
               <TouchableOpacity
                 key={`${p.focus}/${p.break}`}
-                style={[styles.presetChip, { backgroundColor: isActive ? focusSessionTheme.accent : t.surface, borderColor: isActive ? focusSessionTheme.accent : t.border }]}
+                style={[styles.presetChip, isLandscape && styles.presetChipLandscape, { backgroundColor: isActive ? focusSessionTheme.accent : t.surface, borderColor: isActive ? focusSessionTheme.accent : t.border }]}
                 onPress={() => { setFocusMinutes(p.focus); setBreakMinutes(p.break); }}
                 activeOpacity={0.8}
                 accessibilityLabel={`${p.focus} minute focus, ${p.break} minute break preset`}
                 accessibilityRole="button"
               >
-                <Text style={[styles.presetText, { color: isActive ? '#fff' : t.textSecondary }]}>{p.focus}/{p.break}</Text>
-                <Text style={[styles.presetUnit, { color: isActive ? 'rgba(255,255,255,0.7)' : t.textMuted }]}>min</Text>
+                <Text style={[styles.presetText, isLandscape && styles.presetTextLandscape, { color: isActive ? '#fff' : t.textSecondary }]}>{p.focus}/{p.break}</Text>
+                <Text style={[styles.presetUnit, isLandscape && styles.presetUnitLandscape, { color: isActive ? 'rgba(255,255,255,0.7)' : t.textMuted }]}>min</Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
         {/* Duration controls */}
-        <View style={styles.durationList}>
-          <View style={[styles.durationControl, { backgroundColor: t.surface, borderColor: t.border }]}>
+        <View style={[styles.durationList, isLandscape && styles.durationListLandscape]}>
+          <View style={[styles.durationControl, isLandscape && styles.durationControlLandscape, { backgroundColor: t.surface, borderColor: t.border }]}>
             <View style={styles.durationTextBlock}>
-              <Text style={[styles.durationLabel, { color: focusSessionTheme.accent }]}>Focus</Text>
-              <Text style={[styles.durationValue, { color: t.textPrimary }]}>{selectedFocusMinutes} min</Text>
+              <Text style={[styles.durationLabel, isLandscape && styles.durationLabelLandscape, { color: focusSessionTheme.accent }]}>Focus</Text>
+              <Text style={[styles.durationValue, isLandscape && styles.durationValueLandscape, { color: t.textPrimary }]}>{selectedFocusMinutes} min</Text>
             </View>
-            <View style={styles.stepper}>
+            <View style={[styles.stepper, isLandscape && styles.stepperLandscape]}>
               <TouchableOpacity
-                style={[styles.stepperBtn, { borderColor: focusSessionTheme.accent }, selectedFocusMinutes <= FOCUS_MINUTES_MIN && styles.stepperBtnDisabled]}
+                style={[styles.stepperBtn, isLandscape && styles.stepperBtnLandscape, { borderColor: focusSessionTheme.accent }, selectedFocusMinutes <= FOCUS_MINUTES_MIN && styles.stepperBtnDisabled]}
                 onPress={() => adjustFocusMinutes(-5)}
                 disabled={selectedFocusMinutes <= FOCUS_MINUTES_MIN}
                 activeOpacity={0.75}
                 accessibilityLabel="Decrease focus duration by 5 minutes"
                 accessibilityRole="button"
               >
-                <Ionicons name="remove" size={22} color={focusSessionTheme.accent} />
+                <Ionicons name="remove" size={isLandscape ? 18 : 22} color={focusSessionTheme.accent} />
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.stepperBtn, { borderColor: focusSessionTheme.accent }, selectedFocusMinutes >= FOCUS_MINUTES_MAX && styles.stepperBtnDisabled]}
+                style={[styles.stepperBtn, isLandscape && styles.stepperBtnLandscape, { borderColor: focusSessionTheme.accent }, selectedFocusMinutes >= FOCUS_MINUTES_MAX && styles.stepperBtnDisabled]}
                 onPress={() => adjustFocusMinutes(5)}
                 disabled={selectedFocusMinutes >= FOCUS_MINUTES_MAX}
                 activeOpacity={0.75}
                 accessibilityLabel="Increase focus duration by 5 minutes"
                 accessibilityRole="button"
               >
-                <Ionicons name="add" size={22} color={focusSessionTheme.accent} />
+                <Ionicons name="add" size={isLandscape ? 18 : 22} color={focusSessionTheme.accent} />
               </TouchableOpacity>
             </View>
           </View>
 
-          <View style={[styles.durationControl, { backgroundColor: t.surface, borderColor: t.border }]}>
+          <View style={[styles.durationControl, isLandscape && styles.durationControlLandscape, { backgroundColor: t.surface, borderColor: t.border }]}>
             <View style={styles.durationTextBlock}>
-              <Text style={[styles.durationLabel, { color: breakSessionTheme.accent }]}>Break</Text>
-              <Text style={[styles.durationValue, { color: t.textPrimary }]}>{selectedBreakMinutes} min</Text>
+              <Text style={[styles.durationLabel, isLandscape && styles.durationLabelLandscape, { color: breakSessionTheme.accent }]}>Break</Text>
+              <Text style={[styles.durationValue, isLandscape && styles.durationValueLandscape, { color: t.textPrimary }]}>{selectedBreakMinutes} min</Text>
             </View>
-            <View style={styles.stepper}>
+            <View style={[styles.stepper, isLandscape && styles.stepperLandscape]}>
               <TouchableOpacity
-                style={[styles.stepperBtn, { borderColor: breakSessionTheme.accent }, selectedBreakMinutes <= BREAK_MINUTES_MIN && styles.stepperBtnDisabled]}
+                style={[styles.stepperBtn, isLandscape && styles.stepperBtnLandscape, { borderColor: breakSessionTheme.accent }, selectedBreakMinutes <= BREAK_MINUTES_MIN && styles.stepperBtnDisabled]}
                 onPress={() => adjustBreakMinutes(-1)}
                 disabled={selectedBreakMinutes <= BREAK_MINUTES_MIN}
                 activeOpacity={0.75}
                 accessibilityLabel="Decrease break duration by 1 minute"
                 accessibilityRole="button"
               >
-                <Ionicons name="remove" size={22} color={breakSessionTheme.accent} />
+                <Ionicons name="remove" size={isLandscape ? 18 : 22} color={breakSessionTheme.accent} />
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.stepperBtn, { borderColor: breakSessionTheme.accent }, selectedBreakMinutes >= BREAK_MINUTES_MAX && styles.stepperBtnDisabled]}
+                style={[styles.stepperBtn, isLandscape && styles.stepperBtnLandscape, { borderColor: breakSessionTheme.accent }, selectedBreakMinutes >= BREAK_MINUTES_MAX && styles.stepperBtnDisabled]}
                 onPress={() => adjustBreakMinutes(1)}
                 disabled={selectedBreakMinutes >= BREAK_MINUTES_MAX}
                 activeOpacity={0.75}
                 accessibilityLabel="Increase break duration by 1 minute"
                 accessibilityRole="button"
               >
-                <Ionicons name="add" size={22} color={breakSessionTheme.accent} />
+                <Ionicons name="add" size={isLandscape ? 18 : 22} color={breakSessionTheme.accent} />
               </TouchableOpacity>
             </View>
           </View>
@@ -452,18 +463,18 @@ export default function TimerScreen() {
 
     const intentionBlock = (
       <>
-        <View style={styles.intentionPrompt}>
-          <CompanionView evolutionStage={evolutionStage} size={116} />
-          <View style={[styles.speechBubble, { backgroundColor: t.surface, borderColor: focusSessionTheme.accent + '55' }]}>
-            <Text style={[styles.speechText, { color: t.textPrimary }]}>What are you working on?</Text>
+        <View style={[styles.intentionPrompt, isLandscape && styles.intentionPromptLandscape]}>
+          <CompanionView evolutionStage={evolutionStage} size={isLandscape ? 82 : 116} />
+          <View style={[styles.speechBubble, isLandscape && styles.speechBubbleLandscape, { backgroundColor: t.surface, borderColor: focusSessionTheme.accent + '55' }]}>
+            <Text style={[styles.speechText, isLandscape && styles.speechTextLandscape, { color: t.textPrimary }]}>What are you working on?</Text>
             <View style={[styles.speechTail, { borderRightColor: t.surface }]} />
           </View>
         </View>
 
-        <View style={[styles.taskCard, { backgroundColor: t.surface, borderColor: focusSessionTheme.accent + '66' }]}>
-          <Text style={[styles.taskLabel, { color: focusSessionTheme.accent }]}>Today's focus</Text>
+        <View style={[styles.taskCard, isLandscape && styles.taskCardLandscape, { backgroundColor: t.surface, borderColor: focusSessionTheme.accent + '66' }]}>
+          <Text style={[styles.taskLabel, isLandscape && styles.taskLabelLandscape, { color: focusSessionTheme.accent }]}>Today's focus</Text>
           <TextInput
-            style={[styles.taskInput, { color: t.textPrimary }]}
+            style={[styles.taskInput, isLandscape && styles.taskInputLandscape, { color: t.textPrimary }]}
             placeholder={TASK_PLACEHOLDERS[currentTag]}
             placeholderTextColor={t.textMuted}
             value={taskInput}
@@ -478,41 +489,49 @@ export default function TimerScreen() {
           />
         </View>
 
-        <View style={styles.tagRow}>
+        <View style={[styles.tagRow, isLandscape && styles.tagRowLandscape]}>
           {SESSION_TAGS.map((tag) => {
             const active = currentTag === tag;
             return (
               <TouchableOpacity
                 key={tag}
-                style={[styles.tagChip, { backgroundColor: active ? focusSessionTheme.accent : t.surface, borderColor: active ? focusSessionTheme.accent : t.border }]}
+                style={[styles.tagChip, isLandscape && styles.tagChipLandscape, { backgroundColor: active ? focusSessionTheme.accent : t.surface, borderColor: active ? focusSessionTheme.accent : t.border }]}
                 onPress={() => setCurrentTag(tag)}
                 activeOpacity={0.8}
                 accessibilityLabel={`${tag} session tag`}
                 accessibilityRole="button"
                 accessibilityState={{ selected: active }}
               >
-                <Text style={[styles.tagChipText, { color: active ? '#fff' : t.textSecondary }]}>{tag}</Text>
+                <Text style={[styles.tagChipText, isLandscape && styles.tagChipTextLandscape, { color: active ? '#fff' : t.textSecondary }]}>{tag}</Text>
               </TouchableOpacity>
             );
           })}
         </View>
 
-        <Text style={[styles.sessionCount, { color: t.textMuted }]}>Session #{todaySessions + 1}</Text>
+        <Text style={[styles.sessionCount, isLandscape && styles.sessionCountLandscape, { color: t.textMuted }]}>Session #{todaySessions + 1}</Text>
       </>
     );
 
     return (
       <KeyboardAvoidingView style={[styles.screen, { backgroundColor: t.focusBg }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <Animated.ScrollView entering={FadeIn.duration(350)} style={styles.scrollScreen} contentContainerStyle={isLandscape ? styles.setupContentLandscape : styles.setupContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <Animated.ScrollView entering={FadeIn.duration(350)} style={styles.scrollScreen} contentContainerStyle={isLandscape ? styles.setupContentLandscape : styles.setupContent} scrollEnabled={!isLandscape} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <StatusBar barStyle="light-content" backgroundColor={t.focusBg} />
-          <TouchableOpacity style={styles.closeBtn} onPress={() => router.back()} hitSlop={12} accessibilityLabel="Close" accessibilityRole="button">
+          <TouchableOpacity style={[styles.closeBtn, isLandscape && styles.closeBtnLandscape]} onPress={() => router.back()} hitSlop={12} accessibilityLabel="Close" accessibilityRole="button">
             <Text style={[styles.closeBtnText, { color: t.textMuted }]}>✕</Text>
           </TouchableOpacity>
 
           {isLandscape ? (
             <View style={styles.landscapeSetupColumns}>
               <View style={styles.landscapeCol}>{intentionBlock}</View>
-              <View style={[styles.landscapeCol, styles.landscapeColRight]}>{durationBlock}</View>
+              <View style={[styles.landscapeCol, styles.landscapeColRight]}>
+                {durationBlock}
+                {taskInput.trim().length > 0 && (
+                  <Text style={[styles.startIntentLine, styles.startIntentLineLandscape, { color: t.textMuted }]} numberOfLines={1}>
+                    Focusing on: <Text style={{ color: t.textPrimary, fontWeight: '700' }}>{taskInput.trim()}</Text>
+                  </Text>
+                )}
+                {setupActionButtons}
+              </View>
             </View>
           ) : (
             <>
@@ -522,21 +541,16 @@ export default function TimerScreen() {
           )}
         </Animated.ScrollView>
 
-        <View style={[styles.setupFloatingBar, { backgroundColor: withAlpha(t.focusBg, 0.92), borderTopColor: t.border, paddingBottom: Math.max(24, insets.bottom + 8) }]}>
-          {taskInput.trim().length > 0 && (
-            <Text style={[styles.startIntentLine, { color: t.textMuted }]} numberOfLines={1}>
-              Focusing on: <Text style={{ color: t.textPrimary, fontWeight: '700' }}>{taskInput.trim()}</Text>
-            </Text>
-          )}
-          <View style={styles.setupActionRow}>
-            <TouchableOpacity style={[styles.startBtn, { backgroundColor: focusSessionTheme.accent }]} onPress={handleStart} activeOpacity={0.85} accessibilityLabel="Start focus session" accessibilityRole="button">
-              <Text style={styles.startBtnText}>Start Focus</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.startBreakBtn, { borderColor: breakSessionTheme.accent }]} onPress={handleStartBreak} activeOpacity={0.85} accessibilityLabel="Take a break" accessibilityRole="button">
-              <Text style={[styles.startBreakBtnText, { color: breakSessionTheme.accent }]}>Take Break</Text>
-            </TouchableOpacity>
+        {!isLandscape && (
+          <View style={[styles.setupFloatingBar, { backgroundColor: withAlpha(t.focusBg, 0.92), borderTopColor: t.border, paddingBottom: Math.max(24, insets.bottom + 8) }]}>
+            {taskInput.trim().length > 0 && (
+              <Text style={[styles.startIntentLine, { color: t.textMuted }]} numberOfLines={1}>
+                Focusing on: <Text style={{ color: t.textPrimary, fontWeight: '700' }}>{taskInput.trim()}</Text>
+              </Text>
+            )}
+            {setupActionButtons}
           </View>
-        </View>
+        )}
       </KeyboardAvoidingView>
     );
   }
@@ -836,13 +850,14 @@ const styles = StyleSheet.create({
   },
   setupContentLandscape: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 40,
-    paddingBottom: 24,
+    paddingHorizontal: 22,
+    paddingVertical: 18,
+    justifyContent: 'center',
   },
   landscapeSetupColumns: {
     flexDirection: 'row',
-    gap: 24,
+    alignItems: 'center',
+    gap: 20,
   },
   landscapeCol: {
     flex: 1,
@@ -906,12 +921,20 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
   },
+  closeBtnLandscape: {
+    top: 12,
+    right: 18,
+  },
   intentionPrompt: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 12,
     marginBottom: 18,
+  },
+  intentionPromptLandscape: {
+    gap: 10,
+    marginBottom: 10,
   },
   speechBubble: {
     flex: 1,
@@ -943,6 +966,15 @@ const styles = StyleSheet.create({
     lineHeight: 27,
     fontWeight: '700',
   },
+  speechBubbleLandscape: {
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  speechTextLandscape: {
+    fontSize: 17,
+    lineHeight: 22,
+  },
   breakPrompt: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -972,12 +1004,23 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
     marginBottom: 16,
   },
+  taskCardLandscape: {
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 10,
+    marginBottom: 10,
+  },
   taskLabel: {
     fontSize: 12,
     fontWeight: '800',
     textTransform: 'uppercase',
     letterSpacing: 1,
     marginBottom: 4,
+  },
+  taskLabelLandscape: {
+    fontSize: 10,
+    marginBottom: 2,
   },
   taskInput: {
     fontSize: 24,
@@ -986,9 +1029,19 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     minHeight: 44,
   },
+  taskInputLandscape: {
+    fontSize: 18,
+    lineHeight: 23,
+    minHeight: 34,
+    paddingVertical: 2,
+  },
   durationList: {
     gap: 10,
     marginBottom: 8,
+  },
+  durationListLandscape: {
+    gap: 8,
+    marginBottom: 10,
   },
   durationControl: {
     minHeight: 76,
@@ -1001,6 +1054,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 16,
   },
+  durationControlLandscape: {
+    minHeight: 58,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    gap: 12,
+  },
   durationTextBlock: {
     flex: 1,
     gap: 4,
@@ -1011,13 +1071,22 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 1,
   },
+  durationLabelLandscape: {
+    fontSize: 10,
+  },
   durationValue: {
     fontSize: 24,
     fontWeight: '800',
   },
+  durationValueLandscape: {
+    fontSize: 18,
+  },
   stepper: {
     flexDirection: 'row',
     gap: 10,
+  },
+  stepperLandscape: {
+    gap: 8,
   },
   stepperBtn: {
     width: 44,
@@ -1027,6 +1096,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  stepperBtnLandscape: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
   stepperBtnDisabled: {
     opacity: 0.35,
   },
@@ -1034,11 +1108,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginBottom: 24,
   },
+  sessionCountLandscape: {
+    fontSize: 12,
+    marginBottom: 0,
+  },
   presetsRow: {
     flexDirection: 'row',
     gap: 10,
     marginBottom: 16,
     justifyContent: 'center',
+  },
+  presetsRowLandscape: {
+    gap: 8,
+    marginBottom: 10,
   },
   presetChip: {
     flex: 1,
@@ -1048,13 +1130,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 2,
   },
+  presetChipLandscape: {
+    borderRadius: 12,
+    paddingVertical: 7,
+  },
   presetText: {
     fontSize: 16,
     fontWeight: '700',
   },
+  presetTextLandscape: {
+    fontSize: 14,
+  },
   presetUnit: {
     fontSize: 10,
     fontWeight: '600',
+  },
+  presetUnitLandscape: {
+    fontSize: 9,
   },
   tagRow: {
     flexDirection: 'row',
@@ -1062,15 +1154,27 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 20,
   },
+  tagRowLandscape: {
+    gap: 6,
+    marginBottom: 8,
+  },
   tagChip: {
     borderWidth: 1,
     borderRadius: 14,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
+  tagChipLandscape: {
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
   tagChipText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  tagChipTextLandscape: {
+    fontSize: 11,
   },
   setupFloatingBar: {
     paddingHorizontal: 24,
@@ -1089,9 +1193,16 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 2,
   },
+  startIntentLineLandscape: {
+    fontSize: 12,
+    marginBottom: 0,
+  },
   setupActionRow: {
     flexDirection: 'row',
     gap: 10,
+  },
+  setupActionRowLandscape: {
+    gap: 8,
   },
   startBtn: {
     flex: 1.25,
@@ -1101,10 +1212,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  startBtnLandscape: {
+    minHeight: 44,
+    borderRadius: 14,
+    paddingVertical: 10,
+  },
   startBtnText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  startBtnTextLandscape: {
+    fontSize: 14,
   },
   startBreakBtn: {
     flex: 1,
@@ -1115,9 +1234,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1.5,
   },
+  startBreakBtnLandscape: {
+    minHeight: 44,
+    borderRadius: 14,
+    paddingVertical: 10,
+  },
   startBreakBtnText: {
     fontSize: 15,
     fontWeight: '600',
+  },
+  startBreakBtnTextLandscape: {
+    fontSize: 13,
   },
   runningLabel: {
     fontSize: 14,
