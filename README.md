@@ -192,7 +192,7 @@ Prioritised by impact and implementation effort. Each phase builds on the previo
 | ✅ | ~~Add ambient sound files~~ | Done — 6 MP3s in `assets/sounds/`, wired in `constants/sounds.ts` |
 | ✅ | ~~Fix `focusTime` showing blank~~ | Done — `stats.tsx` shows `0m` explicitly |
 | 2 | App Store screenshots + description | Include ADHD keywords: "ADHD", "focus", "neurodivergent", "body doubling". No code change needed |
-| 3 | First manual Play Store submit | Unlocks the CI/CD API so automated publishing works going forward |
+| ✅ | ~~First manual Play Store submit~~ | Done — CI/CD now builds and submits automatically on tag push |
 
 ---
 
@@ -216,7 +216,9 @@ Prioritised by impact and implementation effort. Each phase builds on the previo
 | 9  | **Home screen widget + Live Activity** | Timer countdown visible without opening the app. Dynamic Island support. Most requested feature across all competing apps |
 | 10 | **Task list with Pomodoro estimates** | Create tasks, set estimated session count, link a task to each focus session. Time accumulates against the task. Your session tags are already halfway there |
 | 11 | **Lofi / relaxing music** | Add licensed local lofi loops or relaxing break music as sound options. Prefer bundled licensed tracks over an internet stream for reliability and licensing clarity |
-| 12 | **Monetization / premium tier** | Define free vs. paid. Recommended: timer + companion free; ambient sounds + app blocking + widgets as Pro. Set up RevenueCat before building Phase 4 features |
+| 12 | **Companion customization shop** | Earn coins per completed session. Spend coins on companion accessories, background themes, and egg skins. Study Bunny's furniture/cosmetics system is their #1 retention driver — Focus Buddy's evolution system makes this a natural extension |
+| 13 | **Adaptive session suggestions** | After 2+ weeks of data, suggest session length and time of day based on the user's own history (e.g. "You focus best at 9am for 45 min on Work sessions"). Uses existing `sessionHistoryStore` — no new storage needed |
+| 14 | **Monetization / premium tier** | Define free vs. paid. Recommended: timer + companion free; shop coins + app blocking + widgets as Pro. Set up RevenueCat before building Phase 4 features |
 
 ---
 
@@ -228,12 +230,17 @@ Prioritised by impact and implementation effort. Each phase builds on the previo
 | 13 | **App blocking (Screen Time API)** | Lock out distracting apps during focus via iOS `FamilyControls`. The #1 premium feature that makes users pay. Requires a native module — no Expo package exists yet |
 | 14 | **iCloud sync + iPad layout** | Sync session history and companion state via CloudKit. Prevents the "I got a new phone and lost everything" 1-star review. Add responsive iPad layout alongside |
 | 15 | **Apple Watch app** | Start/stop timer and see countdown on wrist. Multiple apps lose reviews specifically for not having this. Requires a watchOS extension target |
-| 16 | **Social / body doubling** | Lightweight anonymous backend (Supabase or Firebase) showing "X people focusing right now". Optionally: friend codes for shared sessions. The fastest-growing focus apps in 2025–26 all have a social layer |
+| 16 | **Social / body doubling — Phase A: live counter** | Supabase `active_sessions` table + Realtime subscription. Focus start inserts a row; focus end deletes it. Home screen shows "X people focusing right now". Anonymous, no accounts needed. ~2 days |
+| 17 | **Social / body doubling — Phase B: focus rooms** | 6-char room codes (e.g. `TIGER3`). Create a room or join a friend's. See each other's timer and status in real time. Adds accountability on top of the anonymous counter. ~1 week |
+| 18 | **Leaderboards** | Weekly and monthly focus-time leaderboards among friends. Pairs naturally with focus rooms — once users have friend connections, surface who focused most this week. Drives retention through friendly competition |
+| 19 | **Calendar integration** | Link focus sessions to Apple Calendar / Google Calendar events. User taps a calendar event → session pre-fills task name and duration. Most requested feature in Flow and Be Focused reviews |
 
 ---
 
 ### Strategic Notes
 
-- **The pet system is an underexploited moat.** Study Bunny has the highest user sentiment in academic research on gamified focus apps purely because of pet emotional attachment. Focus Buddy's evolution system is more sophisticated, and the pet now appears in the pre-session and break rituals. Bringing the pet further into widgets and stats remains higher leverage than adding generic productivity features.
+- **The pet system is an underexploited moat.** Study Bunny has the highest user sentiment in academic research on gamified focus apps purely because of pet emotional attachment. Focus Buddy's evolution system is more sophisticated, and the pet now appears in the pre-session and break rituals. Adding a cosmetics shop (Phase 3) turns the companion into a long-term retention loop — users come back to earn coins, not just to focus.
 - **App blocking is the clearest path to monetization.** Without it, the premium offering relies entirely on cosmetic unlocks. Every successfully monetised timer app has app blocking behind the paywall.
+- **Social is the fastest-growing category.** Focusmate and Focumon are growing purely on co-working features. Focus Buddy can enter this space cheaply with the anonymous counter (2 days) and expand to rooms later. The companion makes social feel warmer than competitors — "focusing with your buddy alongside a friend's buddy" is a unique angle no other app has.
 - **ADHD positioning costs nothing.** Tiimo won Apple's iPhone App of the Year 2025 on ADHD positioning alone. Focus Buddy's soft gamification and companion are inherently ADHD-friendly. A few App Store keyword and screenshot changes could meaningfully move downloads with zero engineering.
+- **Adaptive suggestions close the loop.** Most apps show stats but never act on them. Telling a user "you focus best at 9am on Work sessions" — derived from their own data — creates a feeling of personalisation that no competitor currently offers at this price point.
