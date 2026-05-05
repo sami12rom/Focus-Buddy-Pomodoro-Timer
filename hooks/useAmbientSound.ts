@@ -19,6 +19,7 @@ export function useAmbientSound({ isRunning, isBreak }: Props) {
   const soundRefs     = useRef<Record<string, Audio.Sound>>({});
   const fadeTimerRefs = useRef<Record<string, ReturnType<typeof setInterval> | null>>({});
   const updateRunRef  = useRef(0);
+  const playbackRunRef = useRef(0);
   // Keep a ref so fade callbacks always use the latest value without stale closures
   const volumeRef     = useRef(ambientVolume);
   volumeRef.current   = ambientVolume;
@@ -159,6 +160,7 @@ export function useAmbientSound({ isRunning, isBreak }: Props) {
   // Sync playback whenever session state changes
   useEffect(() => {
     async function sync() {
+      const runId = ++playbackRunRef.current;
       const shouldPlay = isRunning && (!isBreak || playDuringBreak);
 
       await Promise.all(
@@ -169,12 +171,16 @@ export function useAmbientSound({ isRunning, isBreak }: Props) {
 
           if (shouldPlay && !status.isPlaying) {
             await sound.setVolumeAsync(0).catch(() => {});
+            if (runId !== playbackRunRef.current) return;
             await sound.playAsync().catch(() => {});
+            if (runId !== playbackRunRef.current) return;
             rampTo(id, sound, 1, FADE_IN_MS);
           } else if (!shouldPlay && status.isPlaying) {
             await rampTo(id, sound, 0, FADE_OUT_MS);
+            if (runId !== playbackRunRef.current) return;
             await sound.pauseAsync().catch(() => {});
           } else if (shouldPlay && status.isPlaying) {
+            stopFade(id);
             await sound.setVolumeAsync(targetVolume(1)).catch(() => {});
           }
         })

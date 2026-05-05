@@ -8,6 +8,7 @@ import {
   BackHandler,
   StatusBar,
   KeyboardAvoidingView,
+  Modal,
   ScrollView,
   Platform,
   useWindowDimensions,
@@ -60,6 +61,7 @@ const FOCUS_MINUTES_MIN = 1;
 const FOCUS_MINUTES_MAX = 120;
 const BREAK_MINUTES_MIN = 1;
 const BREAK_MINUTES_MAX = 30;
+const FOCUS_EXTENSION_PROMPT_MS = 60_000;
 
 export default function TimerScreen() {
   const router = useRouter();
@@ -71,8 +73,8 @@ export default function TimerScreen() {
     startFocus, pauseFocus, resumeFocus,
     startBreak, pauseBreak, resumeBreak,
     interactDuringBreak, breakInteracted,
-    selectedFocusMinutes, selectedBreakMinutes, currentTag,
-    setFocusMinutes, setBreakMinutes, setCurrentTask, setCurrentTag,
+    selectedFocusMinutes, selectedBreakMinutes, activeDurationMs, currentTag,
+    setFocusMinutes, setBreakMinutes, setCurrentTask, setCurrentTag, extendFocusByMinutes,
     isCurrentBreakLong,
     incrementCycle, resetCycle, clearSnapshot,
   } = useSessionStore();
@@ -88,7 +90,10 @@ export default function TimerScreen() {
   const [showBreakEnd, setShowBreakEnd] = useState(false);
   const [breakWasSkipped, setBreakWasSkipped] = useState(false);
   const [autoStartCountdown, setAutoStartCountdown] = useState<number | undefined>(undefined);
+  const [showFocusExtensionPrompt, setShowFocusExtensionPrompt] = useState(false);
+  const [showSoundPickerModal, setShowSoundPickerModal] = useState(false);
   const rewardDismissedRef = useRef(false);
+  const extensionPromptShownRef = useRef(false);
 
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
@@ -120,6 +125,9 @@ export default function TimerScreen() {
 
   // ── Focus timer ──────────────────────────────────────────────────────────
   const handleFocusComplete = useCallback(() => {
+    setShowFocusExtensionPrompt(false);
+    setShowSoundPickerModal(false);
+    extensionPromptShownRef.current = false;
     deactivateKeepAwake();
     cancelScheduledNotification();
     if (soundEnabled) fireCompletionAlarm('focus');
@@ -131,7 +139,11 @@ export default function TimerScreen() {
     const result = applyFocusReward();
 
     // Record stats with actual duration
-    recordCompletedSession(selectedFocusMinutes);
+    const completedDurationMinutes = Math.max(
+      1,
+      Math.round((useSessionStore.getState().activeDurationMs ?? selectedFocusMinutes * 60_000) / 60_000)
+    );
+    recordCompletedSession(completedDurationMinutes);
 
     // Add session history entry
     const today = getLocalDateKey();
@@ -139,7 +151,7 @@ export default function TimerScreen() {
       date: today,
       task: taskInput,
       tag: currentTag,
-      durationMinutes: selectedFocusMinutes,
+      durationMinutes: completedDurationMinutes,
       completedAt: new Date().toISOString(),
     });
     clearSnapshot();
@@ -180,6 +192,16 @@ export default function TimerScreen() {
 
   const focusTimer = useTimer('focus', handleFocusComplete);
 
+  useEffect(() => {
+    if (status !== 'running') return;
+    if (focusTimer.remainingMs <= 0) return;
+
+    if (focusTimer.remainingMs <= FOCUS_EXTENSION_PROMPT_MS && !extensionPromptShownRef.current) {
+      extensionPromptShownRef.current = true;
+      setShowFocusExtensionPrompt(true);
+    }
+  }, [status, focusTimer.remainingMs]);
+
   // ── Break timer ───────────────────────────────────────────────────────────
   const handleBreakComplete = useCallback(() => {
     deactivateKeepAwake();
@@ -214,6 +236,8 @@ export default function TimerScreen() {
 
   // ── Setup actions ─────────────────────────────────────────────────────────
   function handleStart() {
+    extensionPromptShownRef.current = false;
+    setShowFocusExtensionPrompt(false);
     setCurrentTask(taskInput);
     startFocus();
     if (keepAwakeEnabled) activateKeepAwakeAsync();
@@ -250,8 +274,18 @@ export default function TimerScreen() {
   function handleCancelFocus() {
     deactivateKeepAwake();
     cancelScheduledNotification();
+    setShowFocusExtensionPrompt(false);
+    setShowSoundPickerModal(false);
+    extensionPromptShownRef.current = false;
     reset();
     clearSnapshot();
+  }
+
+  function handleExtendFocus(minutes: number) {
+    setShowFocusExtensionPrompt(false);
+    extensionPromptShownRef.current = false;
+    extendFocusByMinutes(minutes);
+    scheduleSessionEndNotification(focusTimer.remainingMs + minutes * 60_000, 'focus');
   }
 
   function handleRewardDismiss() {
@@ -534,13 +568,106 @@ export default function TimerScreen() {
       </ScrollView>
     </View>
   );
+  const selectedSoundSummary = ambientSounds.length === 0
+    ? 'None'
+    : ambientSounds
+        .map((id) => AMBIENT_SOUNDS.find((s) => s.id === id)?.label)
+        .filter(Boolean)
+        .join(' + ');
+  const soundPickerModal = (
+    <Modal
+      visible={showSoundPickerModal}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowSoundPickerModal(false)}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={[styles.soundModal, { backgroundColor: t.surface, borderColor: t.border }]}>
+          <View style={styles.soundModalHeader}>
+            <Text style={[styles.soundModalTitle, { color: t.textPrimary }]}>Sounds</Text>
+            <TouchableOpacity onPress={() => setShowSoundPickerModal(false)} hitSlop={10} accessibilityLabel="Close sound picker" accessibilityRole="button">
+              <Ionicons name="close" size={20} color={t.textMuted} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.soundModalGrid}>
+            {AMBIENT_SOUNDS.map((s) => {
+              const active = s.id === 'none' ? ambientSounds.length === 0 : ambientSounds.includes(s.id);
+              return (
+                <TouchableOpacity
+                  key={s.id}
+                  style={[styles.soundModalChip, { backgroundColor: active ? focusSessionTheme.accent : t.focusBg, borderColor: active ? focusSessionTheme.accent : t.border }]}
+                  onPress={() => toggleAmbientSound(s.id)}
+                  activeOpacity={0.8}
+                  accessibilityLabel={`${s.label} ambient sound`}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text style={styles.soundChipIcon}>{s.icon}</Text>
+                  <Text style={[styles.soundModalChipText, { color: active ? '#fff' : t.textSecondary }]}>{s.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+  const landscapeSoundControl = (
+    <TouchableOpacity
+      style={[styles.landscapeSoundControl, { backgroundColor: t.surface, borderColor: t.border }]}
+      onPress={() => setShowSoundPickerModal(true)}
+      activeOpacity={0.82}
+      accessibilityLabel={`Change ambient sounds. Current sounds: ${selectedSoundSummary}`}
+      accessibilityRole="button"
+    >
+      <View style={styles.landscapeSoundText}>
+        <Text style={[styles.soundPickerLabel, styles.landscapeSoundLabel, { color: t.textMuted }]}>Sounds</Text>
+        <Text style={[styles.landscapeSoundValue, { color: t.textPrimary }]} numberOfLines={1}>{selectedSoundSummary}</Text>
+      </View>
+      <Ionicons name="options-outline" size={18} color={focusSessionTheme.accent} />
+    </TouchableOpacity>
+  );
 
   if (isFocusRunning) {
-    const totalMs = selectedFocusMinutes * 60_000;
-    const timerSize = isLandscape ? 140 : 180;
+    const totalMs = activeDurationMs ?? selectedFocusMinutes * 60_000;
+    const timerRingSize = isLandscape ? 210 : 260;
+    const timerSize = isLandscape ? 116 : 180;
+    const landscapeExtensionPrompt = (
+      <View style={[styles.extensionPrompt, { backgroundColor: t.surface, borderColor: focusSessionTheme.accent + '66' }]}>
+        <View style={styles.extensionPromptHeader}>
+          <Text style={[styles.extensionPromptTitle, { color: t.textPrimary }]}>Keep going?</Text>
+          <TouchableOpacity onPress={() => setShowFocusExtensionPrompt(false)} hitSlop={10} accessibilityLabel="Dismiss extend focus prompt" accessibilityRole="button">
+            <Ionicons name="close" size={18} color={t.textMuted} />
+          </TouchableOpacity>
+        </View>
+        <Text style={[styles.extensionPromptText, { color: t.textMuted }]}>Your session ends soon.</Text>
+        <View style={styles.extensionPromptActions}>
+          <TouchableOpacity style={[styles.extensionPromptBtn, { backgroundColor: focusSessionTheme.accent }]} onPress={() => handleExtendFocus(5)} activeOpacity={0.8} accessibilityLabel="Extend focus by 5 minutes" accessibilityRole="button">
+            <Text style={styles.extensionPromptBtnText}>+5 min</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.extensionPromptBtn, { backgroundColor: focusSessionTheme.accent }]} onPress={() => handleExtendFocus(10)} activeOpacity={0.8} accessibilityLabel="Extend focus by 10 minutes" accessibilityRole="button">
+            <Text style={styles.extensionPromptBtnText}>+10 min</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+    const portraitExtensionPrompt = (
+      <View style={[styles.extensionPromptCompact, { backgroundColor: t.surface, borderColor: focusSessionTheme.accent + '66' }]}>
+        <Text style={[styles.extensionPromptCompactTitle, { color: t.textPrimary }]}>Keep going?</Text>
+        <TouchableOpacity style={[styles.extensionPromptCompactBtn, { backgroundColor: focusSessionTheme.accent }]} onPress={() => handleExtendFocus(5)} activeOpacity={0.8} accessibilityLabel="Extend focus by 5 minutes" accessibilityRole="button">
+          <Text style={styles.extensionPromptBtnText}>+5</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.extensionPromptCompactBtn, { backgroundColor: focusSessionTheme.accent }]} onPress={() => handleExtendFocus(10)} activeOpacity={0.8} accessibilityLabel="Extend focus by 10 minutes" accessibilityRole="button">
+          <Text style={styles.extensionPromptBtnText}>+10</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => setShowFocusExtensionPrompt(false)} hitSlop={10} accessibilityLabel="Dismiss extend focus prompt" accessibilityRole="button">
+          <Ionicons name="close" size={18} color={t.textMuted} />
+        </TouchableOpacity>
+      </View>
+    );
 
     return (
-      <Animated.ScrollView entering={FadeIn.duration(400)} style={[styles.scrollScreen, { backgroundColor: t.focusBg }]} contentContainerStyle={isLandscape ? styles.runningContentLandscape : styles.runningContent} showsVerticalScrollIndicator={false}>
+      <Animated.ScrollView entering={FadeIn.duration(400)} style={[styles.scrollScreen, { backgroundColor: t.focusBg }]} contentContainerStyle={isLandscape ? styles.focusRunningContentLandscape : styles.runningContent} scrollEnabled={!isLandscape} showsVerticalScrollIndicator={false}>
         <StatusBar barStyle="light-content" backgroundColor={t.focusBg} />
 
         {!isLandscape && (
@@ -555,14 +682,15 @@ export default function TimerScreen() {
           <>
             {/* Landscape: timer left, info + controls right */}
             <View style={styles.landscapeTimerCol}>
-              <CircularTimer remainingMs={focusTimer.remainingMs} totalMs={totalMs} accent={focusSessionTheme.accent} trackColor={t.borderSubtle} glowColor={t.focusAccent + '12'}>
+              <CircularTimer remainingMs={focusTimer.remainingMs} totalMs={totalMs} accent={focusSessionTheme.accent} trackColor={t.borderSubtle} glowColor={t.focusAccent + '12'} size={timerRingSize}>
                 <CompanionView evolutionStage={evolutionStage} size={timerSize} isFocusing={focusTimer.isRunning || focusTimer.isPaused} isPaused={focusTimer.isPaused} />
               </CircularTimer>
-              <TimerDisplay remainingMs={focusTimer.remainingMs} />
+              <TimerDisplay remainingMs={focusTimer.remainingMs} style={styles.timerDisplayLandscape} />
             </View>
-            <View style={styles.landscapeInfoCol}>
+            <View style={styles.focusLandscapeInfoCol}>
               <Text style={[styles.runningLabel, { color: t.textSecondary }]}>Focus Session</Text>
               {taskInput.length > 0 && <Text style={[styles.taskSubtitle, { color: t.textMuted }]} numberOfLines={1}>{taskInput}</Text>}
+              {showFocusExtensionPrompt && landscapeExtensionPrompt}
               {focusTimer.isPaused && <Text style={[styles.pausedText, { color: t.xpGold }]}>Paused</Text>}
               <View style={styles.controls}>
                 <TouchableOpacity style={[styles.controlBtn, { backgroundColor: focusSessionTheme.accent }]} onPress={focusTimer.isRunning ? handlePauseFocus : handleResumeFocus} activeOpacity={0.8} accessibilityLabel={focusTimer.isRunning ? 'Pause focus session' : 'Resume focus session'} accessibilityRole="button">
@@ -572,17 +700,18 @@ export default function TimerScreen() {
                   <Text style={[styles.controlBtnText, { color: t.textSecondary }]}>Cancel</Text>
                 </TouchableOpacity>
               </View>
-              {soundPicker}
+              {landscapeSoundControl}
             </View>
           </>
         ) : (
           <>
             <Text style={[styles.runningLabel, { color: t.textSecondary }]}>Focus Session</Text>
             {taskInput.length > 0 && <Text style={[styles.taskSubtitle, { color: t.textMuted }]} numberOfLines={1}>{taskInput}</Text>}
-            <CircularTimer remainingMs={focusTimer.remainingMs} totalMs={totalMs} accent={focusSessionTheme.accent} trackColor={t.borderSubtle} glowColor={t.focusAccent + '12'}>
+            <CircularTimer remainingMs={focusTimer.remainingMs} totalMs={totalMs} accent={focusSessionTheme.accent} trackColor={t.borderSubtle} glowColor={t.focusAccent + '12'} size={timerRingSize}>
               <CompanionView evolutionStage={evolutionStage} size={timerSize} isFocusing={focusTimer.isRunning || focusTimer.isPaused} isPaused={focusTimer.isPaused} />
             </CircularTimer>
             <TimerDisplay remainingMs={focusTimer.remainingMs} />
+            {showFocusExtensionPrompt && portraitExtensionPrompt}
             {focusTimer.isPaused && <Text style={[styles.pausedText, { color: t.xpGold }]}>Paused</Text>}
             <View style={styles.controls}>
               <TouchableOpacity style={[styles.controlBtn, { backgroundColor: focusSessionTheme.accent }]} onPress={focusTimer.isRunning ? handlePauseFocus : handleResumeFocus} activeOpacity={0.8} accessibilityLabel={focusTimer.isRunning ? 'Pause focus session' : 'Resume focus session'} accessibilityRole="button">
@@ -592,7 +721,7 @@ export default function TimerScreen() {
                 <Text style={[styles.controlBtnText, { color: t.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
             </View>
-            {soundPicker}
+            {!showFocusExtensionPrompt && soundPicker}
           </>
         )}
 
@@ -603,6 +732,7 @@ export default function TimerScreen() {
         )}
 
         <RewardModal visible={showReward} result={rewardResult} task={taskInput} onDismiss={handleRewardDismiss} autoStartCountdown={autoStartBreak ? autoStartCountdown : undefined} />
+        {soundPickerModal}
       </Animated.ScrollView>
     );
   }
@@ -738,6 +868,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 24,
   },
+  focusRunningContentLandscape: {
+    flexGrow: 1,
+    flexDirection: 'row',
+    paddingHorizontal: 28,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 20,
+  },
   landscapeTimerCol: {
     flex: 1,
     alignItems: 'center',
@@ -749,6 +888,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 16,
+  },
+  focusLandscapeInfoCol: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
   },
   closeBtn: {
     position: 'absolute',
@@ -1005,6 +1150,70 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 16,
   },
+  timerDisplayLandscape: {
+    fontSize: 52,
+    letterSpacing: 2,
+  },
+  extensionPrompt: {
+    width: '100%',
+    borderWidth: 1.5,
+    borderRadius: 16,
+    padding: 12,
+    gap: 8,
+  },
+  extensionPromptHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  extensionPromptTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  extensionPromptText: {
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  extensionPromptActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  extensionPromptBtn: {
+    flex: 1,
+    minHeight: 38,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  extensionPromptBtnText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  extensionPromptCompact: {
+    width: '100%',
+    minHeight: 48,
+    borderWidth: 1.5,
+    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  extensionPromptCompactTitle: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  extensionPromptCompactBtn: {
+    minWidth: 54,
+    minHeight: 34,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   petBtn: {
     borderWidth: 1,
     borderRadius: 16,
@@ -1052,6 +1261,29 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 4,
   },
+  landscapeSoundControl: {
+    width: '100%',
+    minHeight: 54,
+    borderWidth: 1.5,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  landscapeSoundText: {
+    flex: 1,
+    gap: 3,
+  },
+  landscapeSoundLabel: {
+    textAlign: 'left',
+  },
+  landscapeSoundValue: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
   soundChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1067,5 +1299,50 @@ const styles = StyleSheet.create({
   soundChipLabel: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  soundModal: {
+    width: '100%',
+    maxWidth: 420,
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 16,
+    gap: 14,
+  },
+  soundModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  soundModalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  soundModalGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  soundModalChip: {
+    minWidth: '47%',
+    flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  soundModalChipText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

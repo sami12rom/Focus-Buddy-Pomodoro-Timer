@@ -72,6 +72,7 @@ interface SessionActions {
   setLongBreakMinutes: (n: number) => void;
   setCurrentTask: (task: string) => void;
   setCurrentTag: (tag: SessionTag) => void;
+  extendFocusByMinutes: (minutes: number) => void;
 
   incrementCycle: () => void;
   resetCycle: () => void;
@@ -225,6 +226,18 @@ export const useSessionStore = create<SessionState & SessionActions>()(
       setLongBreakMinutes: (n) => set({ selectedLongBreakMinutes: n }),
       setCurrentTask: (task) => set({ currentTask: task }),
       setCurrentTag: (tag) => set({ currentTag: tag }),
+      extendFocusByMinutes: (minutes) =>
+        set((s) => {
+          if (s.status !== 'running' && s.status !== 'paused') return {};
+          const extraMs = minutes * 60_000;
+          const activeDurationMs = (s.activeDurationMs ?? s.selectedFocusMinutes * 60_000) + extraMs;
+          return {
+            activeDurationMs,
+            activeSessionSnapshot: s.activeSessionSnapshot?.type === 'focus'
+              ? { ...s.activeSessionSnapshot, durationMs: activeDurationMs }
+              : s.activeSessionSnapshot,
+          };
+        }),
 
       incrementCycle: () =>
         set((s) => ({ completedFocusesInCycle: s.completedFocusesInCycle + 1 })),

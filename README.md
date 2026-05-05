@@ -174,10 +174,10 @@ Prioritised by impact and implementation effort. Each phase builds on the previo
 | Break UX | ✅ Breathe in / breathe out feels too quick | Done — breathing now uses four synced phases: breathe in, hold, breathe out, rest |
 | Break UX | Add relaxing audio for break time | Consider a separate break-only sound option: breathing guide, soft chime bed, or licensed relaxing music |
 | Text input | ✅ Today-focus task input does not autocorrect typos | Done — intention input now enables autocorrect, spellcheck, and sentence capitalization |
-| Landscape | Focus setup screen requires scrolling | Create a compact landscape layout so timer setup, intention input, and actions fit in one viewport |
+| Landscape | ✅ Focus screen requires scrolling | Done — active focus landscape uses a tighter two-column layout with smaller timer text and compact spacing |
 | Landscape | Settings → start focus page needs to fit without scrolling | Reduce vertical spacing and use a denser two-column landscape layout |
-| Landscape | Sound options look like a horizontal scroll during focus | Replace landscape sound scroller with compact chips, segmented menu, or a small modal picker |
-| Focus completion | Focus ends and moves toward break too quickly | Add an end-of-focus grace state with one-tap extension buttons (+5 min / +10 min) before break starts |
+| Landscape | ✅ Sound options look like a horizontal scroll during focus | Done — landscape focus now shows a compact sound summary that opens a modal picker |
+| Focus completion | ✅ Focus ends and moves toward break too quickly | Done — final-minute prompt offers +5 min / +10 min while the timer continues normally if ignored |
 
 ### Phase 1 — Ship Ready
 *Must be done before the first public release. No new features.*
