@@ -22,8 +22,11 @@ A gamified Pomodoro timer for iOS and Android where a virtual companion evolves 
 - **4 themes** — Cosmic Night, Kawaii Dusk, Ember Dark, Retro Pixel; persisted per user
 - **Behavior toggles** — Sound, Haptics, Keep Awake; individually toggleable in Settings
 - **Circular SVG timer** — progress ring with companion inside during focus running phase
-- **Guided break breathing** — animated expand/contract circle with synced "breathe in / breathe out" cues and companion guidance during break countdown
+- **Final-minute focus extension** — optional +5 / +10 minute prompt appears near the end of focus while the timer keeps running
+- **Guided break breathing** — animated expand/contract circle with synced "breathe in", hold, "breathe out", and rest cues plus companion guidance
 - **Ambient sound mixing** — layer up to 2 ambient sounds at once (rain, coffee, white noise, forest, brown noise) with fade in/out, volume balancing, and optional play-during-breaks toggle
+- **Landscape focus layout** — compact active-session landscape view with smaller timer, denser controls, and a modal sound picker
+- **Autocorrected focus intention** — task input enables native autocorrect, spellcheck, and sentence capitalization where supported
 - **Focus insights** — most productive day, peak focus time, 14-day consistency %, average session length, weekday vs weekend comparison
 - **Share stats card** — shareable PNG card with companion stage, streak, sessions, level, and focus time
 - **Daily companion dialogue** — context-aware speech bubble messages (absence, happiness, streak milestones, goal progress, time-of-day greetings)
@@ -57,7 +60,7 @@ A gamified Pomodoro timer for iOS and Android where a virtual companion evolves 
 ```
 app/
   _layout.tsx          — Root layout: tabs, theme-aware tab bar, Android notification channel
-  focus.tsx            — Full-screen timer: setup, focus running, break running phases
+  focus.tsx            — Full-screen timer: setup, focus running, final-minute extension prompt, break running phases
   (tabs)/
     index.tsx          — Home: companion, speech bubble, XP bar, daily goals, recovery modal
     stats.tsx          — Stats: summary, insights, goals, 7-day chart, heatmap, achievements, history, share
@@ -72,7 +75,7 @@ components/
   XPBar.tsx              — XP progress bar with level labels
   MoodBadge.tsx          — Happiness emoji badge (happy / neutral / tired)
   SessionBanner.tsx      — Live countdown banner shown on Home/Stats during active session
-  BreathingAnimation.tsx — Expand/contract circle with "breathe in / out" cues during breaks
+  BreathingAnimation.tsx — Four-phase expand/hold/contract/rest breathing cue during breaks
   ShareStatsCard.tsx     — Fixed-style PNG card used for the share feature
   RewardModal.tsx        — Post-focus reward sheet (XP gained, level-up, evolution)
   BreakEndModal.tsx      — Post-break choice: start next focus or finish for now
@@ -98,7 +101,7 @@ constants/
 hooks/
   useTheme.ts        — Returns active AppTheme from themeStore
   useTimer.ts        — Wall-clock timer (Date.now() − startedAt − pausedMs); AppState sync
-  useAmbientSound.ts — Loads, mixes, fades, and unloads ambient audio layers via expo-av
+  useAmbientSound.ts — Loads, mixes, fades, and unloads ambient audio layers via expo-av; guards against pause/resume audio races
 
 assets/
   buddy/        — 5 transparent PNG companion evolution stage assets
@@ -154,7 +157,9 @@ npm test
 
 **Achievement permanence** — once an achievement is unlocked its ID is stored in `unlockedAchievements`. The `getAchievements` helper checks this array first, so achievements stay unlocked even when the underlying metric resets (e.g. streak breaks back to 0).
 
-**Ambient audio** — `useAmbientSound` sets `playsInSilentModeIOS: true` and `staysActiveInBackground: true` on mount. It can run up to 2 ambient sound layers at once, balances combined volume with a simple mix gain, and uses 50ms fade ramps to avoid abrupt cuts.
+**Focus extension** — the active focus screen shows a non-blocking final-minute prompt with +5 / +10 minute actions. Ignoring it lets the session finish normally; extending updates the active duration and notification schedule, and completed stats use the extended duration.
+
+**Ambient audio** — `useAmbientSound` sets `playsInSilentModeIOS: true` and `staysActiveInBackground: true` on mount. It can run up to 2 ambient sound layers at once, balances combined volume with a simple mix gain, and uses 50ms fade ramps to avoid abrupt cuts. Playback sync uses a run guard so quick pause/resume taps cannot let a stale fade-out pause the sound after resume.
 
 **Companion dialogue** — `getCompanionMessage` evaluates 8 priority tiers in order on every home screen focus. The fallback pool uses a day-seeded index so the message is stable throughout the day but changes daily without any server call.
 
@@ -175,7 +180,7 @@ Prioritised by impact and implementation effort. Each phase builds on the previo
 | Break UX | Add relaxing audio for break time | Consider a separate break-only sound option: breathing guide, soft chime bed, or licensed relaxing music |
 | Text input | ✅ Today-focus task input does not autocorrect typos | Done — intention input now enables autocorrect, spellcheck, and sentence capitalization |
 | Landscape | ✅ Focus screen requires scrolling | Done — active focus landscape uses a tighter two-column layout with smaller timer text and compact spacing |
-| Landscape | Settings → start focus page needs to fit without scrolling | Reduce vertical spacing and use a denser two-column landscape layout |
+| Landscape | Focus setup screen needs to fit without scrolling | Reduce vertical spacing and use a denser two-column setup layout |
 | Landscape | ✅ Sound options look like a horizontal scroll during focus | Done — landscape focus now shows a compact sound summary that opens a modal picker |
 | Focus completion | ✅ Focus ends and moves toward break too quickly | Done — final-minute prompt offers +5 min / +10 min while the timer continues normally if ignored |
 
