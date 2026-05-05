@@ -194,7 +194,7 @@ Prioritised by impact and implementation effort. Each phase builds on the previo
 | 2 | App Store screenshots + description | Include ADHD keywords: "ADHD", "focus", "neurodivergent", "body doubling". No code change needed |
 | ✅ | ~~First manual Play Store submit~~ | Done — CI/CD now builds and submits automatically on tag push |
 
----
+----
 
 ### Phase 2 — Quick Wins
 *All doable inside the existing codebase. No new native modules. 2–3 days each.*
