@@ -3,12 +3,12 @@
     "name": "Focus Buddy",
     "slug": "focus-buddy",
     "scheme": "focusbuddy",
-    "version": "1.0.16",
+    "version": "1.0.17",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/images/icon.png",
+      "image": "./assets/images/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#1a1a2e"
     },
@@ -26,11 +26,12 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png",
+        "foregroundImage": "./assets/images/adaptive-foreground.png",
         "backgroundColor": "#1a1a2e"
       },
       "package": "com.techbytestudio.focusbuddy",
-      "versionCode": 16
+      "versionCode": 17,
+      "enableProguardInReleaseBuilds": false
     },
     "plugins": [
       "expo-router",
@@ -40,7 +41,8 @@
         {
           "color": "#ffffff"
         }
-      ]
+      ],
+      "./plugins/removeRecordAudio"
     ],
     "experiments": {
       "typedRoutes": true
