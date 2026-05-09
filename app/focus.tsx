@@ -690,14 +690,6 @@ export default function TimerScreen() {
       <Animated.ScrollView entering={FadeIn.duration(400)} style={[styles.scrollScreen, { backgroundColor: t.focusBg }]} contentContainerStyle={isLandscape ? styles.focusRunningContentLandscape : styles.runningContent} scrollEnabled={!isLandscape} showsVerticalScrollIndicator={false}>
         <StatusBar barStyle="light-content" backgroundColor={t.focusBg} />
 
-        {!isLandscape && (
-          <>
-            <Text style={[styles.decor, { top: 72, left: 28 }]}>📚</Text>
-            <Text style={[styles.decor, { top: 96, right: 28 }]}>☕</Text>
-            <Text style={[styles.decor, { bottom: 148, left: 20 }]}>🪴</Text>
-          </>
-        )}
-
         {isLandscape ? (
           <>
             {/* Landscape: timer left, info + controls right */}
@@ -1378,11 +1370,6 @@ const styles = StyleSheet.create({
     marginTop: -16,
     maxWidth: '80%',
     textAlign: 'center',
-  },
-  decor: {
-    position: 'absolute',
-    fontSize: 26,
-    opacity: 0.45,
   },
   soundPickerContainer: {
     width: '100%',

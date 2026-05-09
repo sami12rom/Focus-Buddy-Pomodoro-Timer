@@ -8,7 +8,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../hooks/useTheme';
 import { AppTheme } from '../constants/colors';
 import { DEFAULT_COMPANION_NAME } from '../constants/game';
@@ -27,11 +29,15 @@ const GOAL_OPTIONS = [
 
 export default function OnboardingModal({ onComplete }: Props) {
   const t = useTheme();
+  const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
   const [step, setStep] = useState(1);
   const [name, setName] = useState('');
   const [selectedGoal, setSelectedGoal] = useState(4);
 
   const displayName = name.trim() || DEFAULT_COMPANION_NAME;
+  const isCompactHeight = height < 760;
+  const bottomPadding = Math.max(insets.bottom, 20) + 104;
 
   function handleComplete() {
     onComplete(displayName, selectedGoal);
@@ -43,7 +49,7 @@ export default function OnboardingModal({ onComplete }: Props) {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       {/* Step dots */}
-      <View style={styles.dots}>
+      <View style={[styles.dots, isCompactHeight && styles.dotsCompact]}>
         {[1, 2, 3].map((s) => (
           <View
             key={s}
@@ -56,12 +62,21 @@ export default function OnboardingModal({ onComplete }: Props) {
         ))}
       </View>
 
-      {step === 1 && <StepOne t={t} onNext={() => setStep(2)} />}
+      {step === 1 && (
+        <StepOne
+          t={t}
+          compact={isCompactHeight}
+          bottomPadding={bottomPadding}
+          onNext={() => setStep(2)}
+        />
+      )}
       {step === 2 && (
         <StepTwo
           t={t}
           name={name}
           displayName={displayName}
+          compact={isCompactHeight}
+          bottomPadding={bottomPadding}
           onChangeName={setName}
           onNext={() => setStep(3)}
         />
@@ -70,6 +85,8 @@ export default function OnboardingModal({ onComplete }: Props) {
         <StepThree
           t={t}
           selectedGoal={selectedGoal}
+          compact={isCompactHeight}
+          bottomPadding={bottomPadding}
           onSelectGoal={setSelectedGoal}
           onComplete={handleComplete}
         />
@@ -80,20 +97,36 @@ export default function OnboardingModal({ onComplete }: Props) {
 
 // ── Step 1: Welcome + Pomodoro explanation ────────────────────────────────
 
-function StepOne({ t, onNext }: { t: AppTheme; onNext: () => void }) {
+function StepOne({
+  t, compact, bottomPadding, onNext,
+}: {
+  t: AppTheme;
+  compact: boolean;
+  bottomPadding: number;
+  onNext: () => void;
+}) {
   return (
-    <ScrollView contentContainerStyle={styles.stepContent} showsVerticalScrollIndicator={false}>
+    <ScrollView
+      contentContainerStyle={[
+        styles.stepContent,
+        styles.stepScrollContent,
+        compact && styles.stepContentCompact,
+        { paddingBottom: bottomPadding },
+      ]}
+      showsVerticalScrollIndicator={false}
+    >
       <Text style={[styles.appName, { color: t.focusAccent }]}>Focus Buddy</Text>
-      <Text style={[styles.heading, { color: t.textPrimary }]}>Work smarter,{'\n'}not harder.</Text>
-      <Text style={[styles.sub, { color: t.textMuted }]}>
+      <Text style={[styles.heading, compact && styles.headingCompact, { color: t.textPrimary }]}>Work smarter,{'\n'}not harder.</Text>
+      <Text style={[styles.sub, compact && styles.subCompact, { color: t.textMuted }]}>
         The Pomodoro Technique helps you stay focused and avoid burnout by working in short, intentional sprints.
       </Text>
 
-      <View style={[styles.stepsCard, { backgroundColor: t.surface }]}>
+      <View style={[styles.stepsCard, compact && styles.stepsCardCompact, { backgroundColor: t.surface }]}>
         <FeatureRow
           icon="🍅"
           title="Focus sprint"
           desc="Work on one thing for 25 minutes — no distractions."
+          compact={compact}
           t={t}
         />
         <View style={[styles.featureDivider, { backgroundColor: t.borderSubtle }]} />
@@ -101,6 +134,7 @@ function StepOne({ t, onNext }: { t: AppTheme; onNext: () => void }) {
           icon="☕"
           title="Short break"
           desc="Rest for 5 minutes. Your brain needs it to consolidate."
+          compact={compact}
           t={t}
         />
         <View style={[styles.featureDivider, { backgroundColor: t.borderSubtle }]} />
@@ -108,6 +142,7 @@ function StepOne({ t, onNext }: { t: AppTheme; onNext: () => void }) {
           icon="🔁"
           title="Build momentum"
           desc="After 4 sprints, take a longer break. Repeat daily."
+          compact={compact}
           t={t}
         />
         <View style={[styles.featureDivider, { backgroundColor: t.borderSubtle }]} />
@@ -115,12 +150,13 @@ function StepOne({ t, onNext }: { t: AppTheme; onNext: () => void }) {
           icon="🐾"
           title="Grow your companion"
           desc="Your buddy levels up with every session you complete."
+          compact={compact}
           t={t}
         />
       </View>
 
       <TouchableOpacity
-        style={[styles.button, { backgroundColor: t.focusAccent }]}
+        style={[styles.button, compact && styles.buttonCompact, { backgroundColor: t.focusAccent }]}
         onPress={onNext}
         activeOpacity={0.85}
         accessibilityLabel="Get started"
@@ -135,21 +171,32 @@ function StepOne({ t, onNext }: { t: AppTheme; onNext: () => void }) {
 // ── Step 2: Name your companion ───────────────────────────────────────────
 
 function StepTwo({
-  t, name, displayName, onChangeName, onNext,
+  t, name, displayName, compact, bottomPadding, onChangeName, onNext,
 }: {
   t: AppTheme;
   name: string;
   displayName: string;
+  compact: boolean;
+  bottomPadding: number;
   onChangeName: (v: string) => void;
   onNext: () => void;
 }) {
   return (
-    <View style={styles.stepContent}>
-      <CompanionView evolutionStage={1} size={148} />
+    <ScrollView
+      contentContainerStyle={[
+        styles.stepContent,
+        styles.stepScrollContent,
+        compact && styles.stepContentCompact,
+        { paddingBottom: bottomPadding },
+      ]}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
+      <CompanionView evolutionStage={1} size={compact ? 118 : 148} />
 
       <View style={styles.stepTextBlock}>
-        <Text style={[styles.heading, { color: t.textPrimary }]}>Meet your companion</Text>
-        <Text style={[styles.sub, { color: t.textMuted }]}>
+        <Text style={[styles.heading, compact && styles.headingCompact, { color: t.textPrimary }]}>Meet your companion</Text>
+        <Text style={[styles.sub, compact && styles.subCompact, { color: t.textMuted }]}>
           They'll grow alongside you — evolving as you complete sessions, day after day.
         </Text>
       </View>
@@ -173,7 +220,7 @@ function StepTwo({
       </Text>
 
       <TouchableOpacity
-        style={[styles.button, { backgroundColor: t.focusAccent }]}
+        style={[styles.button, compact && styles.buttonCompact, { backgroundColor: t.focusAccent }]}
         onPress={onNext}
         activeOpacity={0.85}
         accessibilityLabel="Continue"
@@ -181,27 +228,37 @@ function StepTwo({
       >
         <Text style={styles.buttonText}>Continue →</Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
 // ── Step 3: Set daily goal ────────────────────────────────────────────────
 
 function StepThree({
-  t, selectedGoal, onSelectGoal, onComplete,
+  t, selectedGoal, compact, bottomPadding, onSelectGoal, onComplete,
 }: {
   t: AppTheme;
   selectedGoal: number;
+  compact: boolean;
+  bottomPadding: number;
   onSelectGoal: (v: number) => void;
   onComplete: () => void;
 }) {
   const selected = GOAL_OPTIONS.find((o) => o.sessions === selectedGoal) ?? GOAL_OPTIONS[1];
 
   return (
-    <View style={styles.stepContent}>
+    <ScrollView
+      contentContainerStyle={[
+        styles.stepContent,
+        styles.stepScrollContent,
+        compact && styles.stepContentCompact,
+        { paddingBottom: bottomPadding },
+      ]}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.stepTextBlock}>
-        <Text style={[styles.heading, { color: t.textPrimary }]}>Set your daily goal</Text>
-        <Text style={[styles.sub, { color: t.textMuted }]}>
+        <Text style={[styles.heading, compact && styles.headingCompact, { color: t.textPrimary }]}>Set your daily goal</Text>
+        <Text style={[styles.sub, compact && styles.subCompact, { color: t.textMuted }]}>
           How many focus sessions do you want to complete each day? You can always change this later.
         </Text>
       </View>
@@ -247,7 +304,7 @@ function StepThree({
       </View>
 
       <TouchableOpacity
-        style={[styles.button, { backgroundColor: t.focusAccent }]}
+        style={[styles.button, compact && styles.buttonCompact, { backgroundColor: t.focusAccent }]}
         onPress={onComplete}
         activeOpacity={0.85}
         accessibilityLabel="Start focusing"
@@ -255,19 +312,27 @@ function StepThree({
       >
         <Text style={styles.buttonText}>Start Focusing →</Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
 // ── Shared sub-components ─────────────────────────────────────────────────
 
-function FeatureRow({ icon, title, desc, t }: { icon: string; title: string; desc: string; t: AppTheme }) {
+function FeatureRow({
+  icon, title, desc, compact, t,
+}: {
+  icon: string;
+  title: string;
+  desc: string;
+  compact: boolean;
+  t: AppTheme;
+}) {
   return (
-    <View style={styles.featureRow}>
-      <Text style={styles.featureIcon}>{icon}</Text>
+    <View style={[styles.featureRow, compact && styles.featureRowCompact]}>
+      <Text style={[styles.featureIcon, compact && styles.featureIconCompact]}>{icon}</Text>
       <View style={styles.featureText}>
-        <Text style={[styles.featureTitle, { color: t.textPrimary }]}>{title}</Text>
-        <Text style={[styles.featureDesc, { color: t.textMuted }]}>{desc}</Text>
+        <Text style={[styles.featureTitle, compact && styles.featureTitleCompact, { color: t.textPrimary }]}>{title}</Text>
+        <Text style={[styles.featureDesc, compact && styles.featureDescCompact, { color: t.textMuted }]}>{desc}</Text>
       </View>
     </View>
   );
@@ -286,6 +351,10 @@ const styles = StyleSheet.create({
     paddingTop: 56,
     paddingBottom: 8,
   },
+  dotsCompact: {
+    paddingTop: 28,
+    paddingBottom: 4,
+  },
   dot: {
     width: 8,
     height: 8,
@@ -295,13 +364,20 @@ const styles = StyleSheet.create({
     width: 24,
   },
   stepContent: {
-    flex: 1,
     paddingHorizontal: 28,
     paddingBottom: 40,
     paddingTop: 16,
     gap: 20,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  stepScrollContent: {
+    flexGrow: 1,
+  },
+  stepContentCompact: {
+    paddingHorizontal: 22,
+    paddingTop: 8,
+    gap: 14,
   },
   appName: {
     fontSize: 13,
@@ -315,11 +391,20 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 36,
   },
+  headingCompact: {
+    fontSize: 24,
+    lineHeight: 30,
+  },
   sub: {
     fontSize: 15,
     textAlign: 'center',
     lineHeight: 22,
     marginTop: -8,
+  },
+  subCompact: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: -6,
   },
   stepTextBlock: {
     gap: 8,
@@ -331,12 +416,20 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     paddingHorizontal: 4,
   },
+  stepsCardCompact: {
+    borderRadius: 18,
+  },
   featureRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 14,
     paddingHorizontal: 16,
     paddingVertical: 14,
+  },
+  featureRowCompact: {
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   featureDivider: {
     height: 1,
@@ -347,6 +440,10 @@ const styles = StyleSheet.create({
     width: 36,
     textAlign: 'center',
   },
+  featureIconCompact: {
+    fontSize: 22,
+    width: 34,
+  },
   featureText: {
     flex: 1,
     gap: 2,
@@ -355,9 +452,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  featureTitleCompact: {
+    fontSize: 13,
+  },
   featureDesc: {
     fontSize: 12,
     lineHeight: 17,
+  },
+  featureDescCompact: {
+    fontSize: 11,
+    lineHeight: 15,
   },
   inputWrap: {
     width: '100%',
@@ -419,6 +523,9 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     paddingVertical: 18,
     alignItems: 'center',
+  },
+  buttonCompact: {
+    paddingVertical: 15,
   },
   buttonText: {
     color: '#fff',
