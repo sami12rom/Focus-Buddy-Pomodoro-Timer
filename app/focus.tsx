@@ -12,6 +12,8 @@ import {
   ScrollView,
   Platform,
   useWindowDimensions,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -113,6 +115,28 @@ export default function TimerScreen() {
   const isBreakRunning = status === 'break_running' || status === 'break_paused';
 
   useAmbientSound({ isRunning: status === 'running' || status === 'break_running', isBreak: isBreakRunning });
+
+  const shouldKeepAwake = keepAwakeEnabled && (status === 'running' || status === 'break_running');
+
+  useEffect(() => {
+    function syncKeepAwake() {
+      if (shouldKeepAwake) {
+        void activateKeepAwakeAsync();
+      } else {
+        deactivateKeepAwake();
+      }
+    }
+
+    syncKeepAwake();
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      if (next === 'active') syncKeepAwake();
+    });
+
+    return () => {
+      sub.remove();
+      if (shouldKeepAwake) deactivateKeepAwake();
+    };
+  }, [shouldKeepAwake]);
 
   useFocusEffect(
     useCallback(() => {
