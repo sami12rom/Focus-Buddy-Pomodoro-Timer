@@ -24,7 +24,7 @@ A gamified Pomodoro timer for iOS and Android where a virtual companion evolves 
 - **Circular SVG timer** — progress ring with companion inside during focus running phase
 - **Final-minute focus extension** — optional +5 / +10 minute prompt appears near the end of focus while the timer keeps running
 - **Guided break breathing** — animated expand/contract circle with synced "breathe in", hold, "breathe out", and rest cues plus companion guidance
-- **Ambient sound mixing** — layer up to 2 ambient sounds at once (rain, coffee, white noise, forest, brown noise) with fade in/out, volume balancing, and optional play-during-breaks toggle
+- **Ambient sound mixing** — layer up to 2 ambient sounds at once (rain, coffee, white noise, forest, brown noise) with fade in/out, volume balancing, optional play-during-breaks toggle, and a piano break sound
 - **Landscape focus layout** — compact active-session landscape view with smaller timer, denser controls, and a modal sound picker
 - **Autocorrected focus intention** — task input enables native autocorrect, spellcheck, and sentence capitalization where supported
 - **Focus insights** — most productive day, peak focus time, 14-day consistency %, average session length, weekday vs weekend comparison
@@ -174,10 +174,11 @@ Prioritised by impact and implementation effort. Each phase builds on the previo
 
 | Area | Issue / Request | Notes |
 |------|-----------------|-------|
-| Audio | Coffee shop loop ends abruptly, then restarts quietly | Edit or replace the source loop; add a seamless loop point and test the fade so the restart is invisible |
-| Audio | Ambient sounds are not matched in loudness | Normalize perceived loudness across all bundled MP3s; keep per-sound gain overrides if needed |
+| Audio | ✅ Coffee shop loop ends abruptly, then restarts quietly | Done — source loop replaced with a seamless MP3 |
+| Audio | ✅ Ambient sounds are not matched in loudness | Done — bundled MP3s normalized for closer perceived loudness |
+| Audio QA | Test ambient audio after merge/upload | In packaged build, listen through the coffee loop boundary and compare all ambient sounds at the same volume |
 | Break UX | ✅ Breathe in / breathe out feels too quick | Done — breathing now uses four synced phases: breathe in, hold, breathe out, rest |
-| Break UX | Add relaxing audio for break time | Consider a separate break-only sound option: breathing guide, soft chime bed, or licensed relaxing music |
+| Break UX | ✅ Add relaxing audio for break time | Done — added a break-only piano relaxation loop |
 | Text input | ✅ Today-focus task input does not autocorrect typos | Done — intention input now enables autocorrect, spellcheck, and sentence capitalization |
 | Landscape | ✅ Focus screen requires scrolling | Done — active focus landscape uses a tighter two-column layout with smaller timer text and compact spacing |
 | Landscape | ✅ Focus setup screen needs to fit without scrolling | Done — landscape setup uses compact two-column controls with actions inside the right column instead of a bottom bar |

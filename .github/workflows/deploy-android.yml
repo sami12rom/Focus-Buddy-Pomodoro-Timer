@@ -1,4 +1,4 @@
-name: Deploy Android to Play Store
+name: Deploy to App Stores
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   deploy:
-    name: Build & Submit to Play Store
+    name: Build & Submit to Play Store + App Store
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -20,10 +20,12 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Set version from tag
+      - name: Set version and versionCode from tag
         run: |
           VERSION=${GITHUB_REF_NAME#v}
+          VCODE=${VERSION##*.}
           npx json -I -f app.json -e "this.expo.version='${VERSION}'"
+          npx json -I -f app.json -e "this.expo.android.versionCode=${VCODE}"
 
       - name: Install dependencies
         run: npm ci
@@ -39,5 +41,13 @@ jobs:
           EAS_BUILD_NO_EXPO_GO_WARNING: true
         run: eas build --platform android --profile production --non-interactive
 
+      - name: Build iOS (EAS)
+        env:
+          EAS_BUILD_NO_EXPO_GO_WARNING: true
+        run: eas build --platform ios --profile production --non-interactive
+
       - name: Submit to Play Store (EAS)
         run: eas submit --platform android --profile production --latest --non-interactive
+
+      - name: Submit to App Store (EAS)
+        run: eas submit --platform ios --profile production --latest --non-interactive

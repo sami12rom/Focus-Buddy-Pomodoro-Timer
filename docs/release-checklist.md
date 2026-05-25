@@ -4,7 +4,7 @@
 
 ### Code Quality
 - [ ] `npx tsc --noEmit` — zero TypeScript errors
-- [ ] `npm test -- --runInBand` — all 27 unit tests pass
+- [ ] `npm test -- --runInBand` — all 112 unit tests pass
 - [ ] `npx expo-doctor` — all checks pass
 - [ ] No `console.log` / `console.warn` left in production paths
 
@@ -25,6 +25,7 @@
 - [ ] Achievements unlock after completing the matching milestones
 - [ ] Privacy Policy screen opens from Settings and matches `docs/privacy-policy.md`
 - [ ] Settings: Sound / Haptics / Keep Awake toggles persist across app restart
+- [ ] Ambient audio: coffee loop restart is invisible; all bundled sounds feel matched at the same volume
 - [ ] Settings: Long break duration stepper (−/+) persists
 - [ ] Settings: Theme switcher — all 4 themes apply everywhere
 - [ ] Settings: Reset App Data — confirmation dialog appears; after confirming, companion resets

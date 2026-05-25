@@ -1,11 +1,16 @@
 import { useEffect, useRef } from 'react';
 import { Audio } from 'expo-av';
 import { useSettingsStore } from '../store/settingsStore';
-import { AMBIENT_SOUNDS } from '../constants/sounds';
+import { AMBIENT_SOUNDS, BREAK_SOUNDS } from '../constants/sounds';
 
 interface Props {
   isRunning: boolean;
   isBreak: boolean;
+}
+
+interface PlaybackSound {
+  id: string;
+  uri: number;
 }
 
 const FADE_IN_MS  = 1200;
@@ -15,6 +20,7 @@ export function useAmbientSound({ isRunning, isBreak }: Props) {
   const ambientSounds      = useSettingsStore((s) => s.ambientSounds);
   const ambientVolume      = useSettingsStore((s) => s.ambientVolume);
   const playDuringBreak    = useSettingsStore((s) => s.playAmbientDuringBreak);
+  const breakSound         = useSettingsStore((s) => s.breakSound);
 
   const soundRefs     = useRef<Record<string, Audio.Sound>>({});
   const fadeTimerRefs = useRef<Record<string, ReturnType<typeof setInterval> | null>>({});
@@ -23,8 +29,28 @@ export function useAmbientSound({ isRunning, isBreak }: Props) {
   // Keep a ref so fade callbacks always use the latest value without stale closures
   const volumeRef     = useRef(ambientVolume);
   volumeRef.current   = ambientVolume;
-  const selectedCountRef = useRef(Math.max(1, ambientSounds.length));
-  selectedCountRef.current = Math.max(1, ambientSounds.length);
+  const selectedLayerCount = isBreak && breakSound !== 'none'
+    ? 1
+    : Math.max(1, ambientSounds.filter((id) => id !== 'none').length);
+  const selectedCountRef = useRef(selectedLayerCount);
+  selectedCountRef.current = selectedLayerCount;
+
+  function getSelectedSounds(): PlaybackSound[] {
+    if (isBreak && breakSound !== 'none') {
+      const def = BREAK_SOUNDS.find((s) => s.id === breakSound);
+      return def?.uri ? [{ id: `break-${def.id}`, uri: def.uri }] : [];
+    }
+
+    if (isBreak && !playDuringBreak) return [];
+
+    return ambientSounds
+      .filter((id) => id !== 'none')
+      .map((id): PlaybackSound | null => {
+        const def = AMBIENT_SOUNDS.find((s) => s.id === id);
+        return def?.uri ? { id, uri: def.uri } : null;
+      })
+      .filter((sound): sound is PlaybackSound => sound !== null);
+  }
 
   function targetVolume(ratio: number) {
     const mixGain = 1 / Math.sqrt(selectedCountRef.current);
@@ -64,11 +90,15 @@ export function useAmbientSound({ isRunning, isBreak }: Props) {
     Object.keys(fadeTimerRefs.current).forEach(stopFade);
   }
 
-  async function unloadSound(id: string) {
-    stopFade(id);
+  async function unloadSound(id: string, fadeOut = false) {
     const sound = soundRefs.current[id];
     if (!sound) return;
     try {
+      if (fadeOut) {
+        await rampTo(id, sound, 0, FADE_OUT_MS);
+      } else {
+        stopFade(id);
+      }
       await sound.stopAsync();
       await sound.unloadAsync();
     } catch (_e) {}
@@ -113,25 +143,22 @@ export function useAmbientSound({ isRunning, isBreak }: Props) {
   useEffect(() => {
     async function updateSounds() {
       const runId = ++updateRunRef.current;
-      const selected = ambientSounds.filter((id) => id !== 'none');
-      const selectedSet = new Set<string>(selected);
+      const selected = getSelectedSounds();
+      const selectedSet = new Set<string>(selected.map((sound) => sound.id));
       const fadingInIds: string[] = [];
 
       await Promise.all(
         Object.keys(soundRefs.current)
           .filter((id) => !selectedSet.has(id))
-          .map(unloadSound)
+          .map((id) => unloadSound(id, true))
       );
 
       await Promise.all(
-        selected.map(async (id) => {
+        selected.map(async ({ id, uri }) => {
           if (soundRefs.current[id]) return;
-          const def = AMBIENT_SOUNDS.find((s) => s.id === id);
-          if (!def?.uri) return; // sound not yet sourced — silently skip
-
           try {
             const { sound } = await Audio.Sound.createAsync(
-              def.uri,
+              uri,
               { isLooping: true, volume: 0, shouldPlay: false }
             );
             if (runId !== updateRunRef.current || !selectedSet.has(id)) {
@@ -141,8 +168,7 @@ export function useAmbientSound({ isRunning, isBreak }: Props) {
             soundRefs.current[id] = sound;
 
             // Auto-play if session already running when sound is changed
-            const shouldPlay = isRunning && (!isBreak || playDuringBreak);
-            if (shouldPlay) {
+            if (isRunning) {
               await sound.playAsync();
               fadingInIds.push(id);
               rampTo(id, sound, 1, FADE_IN_MS);
@@ -155,13 +181,13 @@ export function useAmbientSound({ isRunning, isBreak }: Props) {
       await updateLoadedVolumes(fadingInIds);
     }
     updateSounds();
-  }, [ambientSounds]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [ambientSounds, breakSound, isBreak, playDuringBreak]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync playback whenever session state changes
   useEffect(() => {
     async function sync() {
       const runId = ++playbackRunRef.current;
-      const shouldPlay = isRunning && (!isBreak || playDuringBreak);
+      const selectedSet = new Set<string>(getSelectedSounds().map((sound) => sound.id));
 
       await Promise.all(
         Object.entries(soundRefs.current).map(async ([id, sound]) => {
@@ -169,6 +195,7 @@ export function useAmbientSound({ isRunning, isBreak }: Props) {
           try { status = await sound.getStatusAsync(); } catch { return; }
           if (!status.isLoaded) return;
 
+          const shouldPlay = isRunning && selectedSet.has(id);
           if (shouldPlay && !status.isPlaying) {
             await sound.setVolumeAsync(0).catch(() => {});
             if (runId !== playbackRunRef.current) return;
@@ -187,7 +214,7 @@ export function useAmbientSound({ isRunning, isBreak }: Props) {
       );
     }
     sync();
-  }, [isRunning, isBreak, playDuringBreak]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isRunning, isBreak, playDuringBreak, breakSound, ambientSounds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Update volume live when the setting changes
   useEffect(() => {

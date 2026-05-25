@@ -9,7 +9,7 @@ import { useSettingsStore } from '../../store/settingsStore';
 import { useGoalStore } from '../../store/goalStore';
 import { THEME_LIST, ThemeId, AppTheme } from '../../constants/colors';
 import { LONG_BREAK_MINUTES_MIN, LONG_BREAK_MINUTES_MAX } from '../../constants/game';
-import { AMBIENT_SOUNDS, VOLUME_STEPS } from '../../constants/sounds';
+import { AMBIENT_SOUNDS, BREAK_SOUNDS, VOLUME_STEPS } from '../../constants/sounds';
 import { resetAllAppData } from '../../utils/resetAppData';
 
 export default function SettingsScreen() {
@@ -19,9 +19,9 @@ export default function SettingsScreen() {
   const { selectedLongBreakMinutes, setLongBreakMinutes } = useSessionStore();
   const {
     soundEnabled, hapticsEnabled, keepAwakeEnabled, autoStartBreak,
-    ambientSounds, ambientVolume, playAmbientDuringBreak,
+    ambientSounds, ambientVolume, playAmbientDuringBreak, breakSound,
     setSoundEnabled, setHapticsEnabled, setKeepAwakeEnabled, setAutoStartBreak,
-    toggleAmbientSound, setAmbientVolume, setPlayAmbientDuringBreak,
+    toggleAmbientSound, setAmbientVolume, setPlayAmbientDuringBreak, setBreakSound,
   } = useSettingsStore();
   const { dailySessionGoal, dailyMinuteGoal, setDailySessionGoal, setDailyMinuteGoal } = useGoalStore();
 
@@ -242,12 +242,47 @@ export default function SettingsScreen() {
 
         <ToggleRow
           label="Play during breaks"
-          description="Keep ambient sound running through break time"
+          description="Use focus ambience when no break sound is selected"
           value={playAmbientDuringBreak}
           onToggle={setPlayAmbientDuringBreak}
           accent={t.focusAccent}
           t={t}
         />
+
+        <View style={[styles.divider, { backgroundColor: t.borderSubtle }]} />
+
+        <Text style={[styles.ambientHint, { color: t.textMuted }]}>
+          Break Sound
+        </Text>
+
+        <View style={styles.ambientPicker}>
+          {BREAK_SOUNDS.map((s) => {
+            const active = breakSound === s.id;
+            const disabled = s.id !== 'none' && s.uri === null;
+            return (
+              <TouchableOpacity
+                key={s.id}
+                style={[
+                  styles.soundChip,
+                  {
+                    backgroundColor: active ? t.focusAccent : t.surfaceRaised,
+                    opacity: disabled ? 0.4 : 1,
+                  },
+                ]}
+                onPress={() => !disabled && setBreakSound(s.id)}
+                activeOpacity={disabled ? 1 : 0.75}
+                accessibilityLabel={`${s.label} break sound${disabled ? ', coming soon' : ''}`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+              >
+                <Text style={styles.soundChipIcon}>{s.icon}</Text>
+                <Text style={[styles.soundChipLabel, { color: active ? '#fff' : t.textSecondary }]}>
+                  {s.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
       {/* ── Strict mode placeholder ── */}
