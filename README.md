@@ -13,6 +13,7 @@ A gamified Pomodoro timer for Android where a virtual companion evolves through 
 - **Automatic Pomodoro loop** — break starts automatically after focus completes; long break triggers after every 4th session
 - **Post-session goal confirmation** — single-tap Done / Partial / No row in the reward modal when a task was set; outcome stored alongside session history
 - **Android live timer notification** — foreground service keeps a live countdown in the notification shade while the app is backgrounded; updates every second via notifee
+- **Live focusing counter** — anonymous real-time count of active focus sessions via Supabase; shown on the home screen to motivate starting a session ("🌍 23 people focusing right now")
 - **Session history** — last 100 completed sessions stored; 7-day bar chart and recent list in Stats
 - **Daily focus goals** — configurable session and minute targets with progress on Home and Stats
 - **Session tags** — categorize sessions as Work, Study, Reading, Chores, or Deep Work
@@ -53,6 +54,7 @@ A gamified Pomodoro timer for Android where a virtual companion evolves through 
 | Audio | expo-av |
 | Sharing | expo-sharing + react-native-view-shot |
 | Store review | expo-store-review |
+| Backend | Supabase (Realtime + PostgreSQL) |
 | Testing | Jest 29 + jest-expo (112 tests) |
 
 ---
@@ -64,7 +66,7 @@ app/
   _layout.tsx          — Root layout: tabs, theme-aware tab bar, Android notification channel, foreground service registration
   focus.tsx            — Full-screen timer: setup, focus running, final-minute extension prompt, break running phases
   (tabs)/
-    index.tsx          — Home: companion, speech bubble, XP bar, daily goals, recovery modal
+    index.tsx          — Home: companion, speech bubble, XP bar, daily goals, live focusing count, recovery modal
     stats.tsx          — Stats: summary, insights, goals, 7-day chart, heatmap, achievements, history, share
     settings.tsx       — Settings: themes, behavior toggles, ambient sound, daily goals, long break
   privacy.tsx          — In-app privacy policy
@@ -92,6 +94,7 @@ store/
   settingsStore.ts       — Sound, haptics, keep-awake, auto-start break, ambient sound layers + volume
   themeStore.ts          — Active theme ID
   goalStore.ts           — Daily session goal and daily minute goal
+  socialStore.ts         — Live focusing count from Supabase Realtime
 
 constants/
   app.ts         — APP_NAME, APP_TAGLINE
@@ -121,6 +124,8 @@ utils/
   mood.ts            — Happiness → Mood type + emoji/label maps
   notifications.ts       — Schedule, cancel, and fire local notifications
   timerNotification.ts   — Android foreground service: live countdown notification via notifee, start/update/stop API
+  supabase.ts            — Supabase client (anon key, URL)
+  activeSessionSync.ts   — Insert/delete active session rows + Realtime count subscription
   resetAppData.ts    — Calls resetToDefaults() on all stores
   sessionStats.ts    — getTodayFocusMinutes, goalProgress (shared between Home + Stats)
   xp.ts              — getLevelForXP, getEvolutionStage, isMaxLevel
@@ -166,7 +171,9 @@ npm test
 
 **Android live timer notification** — `timerNotification.ts` runs a notifee foreground service that ticks every second, computing remaining time from the same wall-clock formula as the in-app timer (`activeDurationMs − (Date.now() − startTime − totalPausedMs)`). Timer state (status, startTime, totalPausedMs, pausedAt) travels via the notification's own `data` field — updated by the main thread on pause/resume, re-read by the service each tick. This keeps the service stateless and avoids any AsyncStorage round-trips on the hot path.
 
-**Goal confirmation** — `RewardModal` replaces the Continue button with a Done / Partial / No row when a task was set. Each tap stores `goalOutcome` on the `SessionHistoryEntry` via `updateEntryOutcome`, giving future insights a signal beyond completion alone.
+**Goal confirmation** — `RewardModal` replaces the Continue button with a Done / Partial / No row when a task was set.
+
+**Live social counter** — each device gets a random UUID on first launch (stored in AsyncStorage). Session start upserts a row; session end/cancel deletes it. `subscribeToFocusingCount` uses Supabase Realtime `postgres_changes` to push updates instantly. `cleanupStaleSession` runs on every launch to remove any row left by a previously killed session. All errors are swallowed — the counter is a non-critical motivational element and must never affect core timer behaviour. Each tap stores `goalOutcome` on the `SessionHistoryEntry` via `updateEntryOutcome`, giving future insights a signal beyond completion alone.
 
 **Companion dialogue** — `getCompanionMessage` evaluates 8 priority tiers in order on every home screen focus. The fallback pool uses a day-seeded index so the message is stable throughout the day but changes daily without any server call.
 
@@ -240,7 +247,7 @@ Prioritised by impact and implementation effort. Each phase builds on the previo
 | 13 | **Android app blocking** | Lock out distracting apps during focus via Android's `UsageStatsManager` + accessibility service. The #1 premium feature that makes users pay |
 | 14 | **Cloud backup** | Sync session history and companion state so users don't lose data on a new phone. Supabase or Firebase, anonymous auth |
 | 15 | **Home screen widget** | Timer countdown visible without opening the app. Uses Android WidgetKit (Java/Kotlin, separate process). Most requested feature across competing apps |
-| 16 | **Social / body doubling — Phase A: live counter** | Supabase `active_sessions` table + Realtime subscription. Focus start inserts a row; focus end deletes it. Home screen shows "X people focusing right now". Anonymous, no accounts needed. ~2 days |
+| ✅ | ~~Social / body doubling — Phase A: live counter~~ | Done — Supabase `active_sessions` table + Realtime subscription. Anonymous device UUID, insert on start, delete on end. Home screen shows "🌍 X people focusing right now" |
 | 17 | **Social / body doubling — Phase B: focus rooms** | 6-char room codes (e.g. `TIGER3`). Create a room or join a friend's. See each other's timer and status in real time. Adds accountability on top of the anonymous counter. ~1 week |
 | 18 | **Leaderboards** | Weekly and monthly focus-time leaderboards among friends. Pairs naturally with focus rooms — once users have friend connections, surface who focused most this week. Drives retention through friendly competition |
 | 19 | **Calendar integration** | Link focus sessions to Google Calendar events. User taps a calendar event → session pre-fills task name and duration |
