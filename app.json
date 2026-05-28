@@ -46,8 +46,7 @@
           "color": "#ffffff"
         }
       ],
-      "./plugins/removeRecordAudio",
-      "@notifee/react-native"
+      "./plugins/removeRecordAudio"
     ],
     "experiments": {
       "typedRoutes": true

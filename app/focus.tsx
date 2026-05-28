@@ -52,6 +52,7 @@ import {
   updateTimerNotification,
   stopTimerNotification,
 } from '../utils/timerNotification';
+import { syncSessionStart, syncSessionEnd } from '../utils/activeSessionSync';
 import { getAchievements } from '../utils/achievements';
 import * as Haptics from 'expo-haptics';
 import * as StoreReview from 'expo-store-review';
@@ -162,6 +163,7 @@ export default function TimerScreen() {
     deactivateKeepAwake();
     cancelScheduledNotification();
     void stopTimerNotification();
+    void syncSessionEnd();
     if (soundEnabled) fireCompletionAlarm('focus');
     if (hapticsEnabled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
@@ -275,6 +277,7 @@ export default function TimerScreen() {
     startFocus();
     if (keepAwakeEnabled) activateKeepAwakeAsync();
     scheduleSessionEndNotification(selectedFocusMinutes * 60_000, 'focus');
+    void syncSessionStart();
     const s = useSessionStore.getState();
     void startTimerNotification({
       status: 'running',
@@ -353,6 +356,7 @@ export default function TimerScreen() {
     reset();
     clearSnapshot();
     void stopTimerNotification();
+    void syncSessionEnd();
   }
 
   function handleExtendFocus(minutes: number) {

@@ -1,5 +1,17 @@
-import notifee, { AndroidImportance, AndroidCategory } from '@notifee/react-native';
 import { Platform } from 'react-native';
+
+// notifee requires a native dev build — gracefully unavailable in Expo Go
+let notifee: any = null;
+let AndroidImportance: any = { LOW: 2 };
+let AndroidCategory: any = { PROGRESS: 'progress' };
+try {
+  const mod = require('@notifee/react-native');
+  notifee = mod.default;
+  AndroidImportance = mod.AndroidImportance;
+  AndroidCategory = mod.AndroidCategory;
+} catch {
+  // Expo Go — timer notification will be a no-op
+}
 
 const CHANNEL_ID = 'focus_timer';
 const NOTIF_ID = 'focus_timer_live';
@@ -98,7 +110,7 @@ function buildDisplayNotification(params: TimerNotifParams, remaining: number) {
 
 // Must be called at module level before any component renders
 export function registerTimerForegroundService() {
-  if (Platform.OS !== 'android') return;
+  if (Platform.OS !== 'android' || !notifee) return;
 
   notifee.registerForegroundService(() =>
     new Promise(async (resolve) => {
@@ -136,19 +148,19 @@ export function registerTimerForegroundService() {
 }
 
 export async function startTimerNotification(params: TimerNotifParams) {
-  if (Platform.OS !== 'android') return;
+  if (Platform.OS !== 'android' || !notifee) return;
   await setupChannel();
   await notifee.displayNotification(buildDisplayNotification(params, params.activeDurationMs));
 }
 
 // Call on pause or resume — updates notification data so the service picks up the new state
 export async function updateTimerNotification(params: TimerNotifParams) {
-  if (Platform.OS !== 'android') return;
+  if (Platform.OS !== 'android' || !notifee) return;
   const remaining = getRemainingMs(params);
   await notifee.displayNotification(buildDisplayNotification(params, remaining));
 }
 
 export async function stopTimerNotification() {
-  if (Platform.OS !== 'android') return;
+  if (Platform.OS !== 'android' || !notifee) return;
   await notifee.cancelNotification(NOTIF_ID);
 }

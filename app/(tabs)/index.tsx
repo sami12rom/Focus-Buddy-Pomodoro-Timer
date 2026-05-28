@@ -32,7 +32,9 @@ import { getTodayFocusMinutes, goalProgress } from '../../utils/sessionStats';
 import { withAlpha } from '../../utils/color';
 import { DEFAULT_SESSION_TAG } from '../../constants/sessionTags';
 import { useGoalStore } from '../../store/goalStore';
+import { useSocialStore } from '../../store/socialStore';
 import { getCompanionMessage } from '../../utils/companionDialogue';
+import { subscribeToFocusingCount, fetchFocusingCount } from '../../utils/activeSessionSync';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -55,6 +57,18 @@ export default function HomeScreen() {
   const recoveryEntryIdRef = useRef<string | null>(null);
   const { hapticsEnabled } = useSettingsStore();
   const { dailySessionGoal, dailyMinuteGoal, setDailySessionGoal } = useGoalStore();
+  const { focusingCount, setFocusingCount } = useSocialStore();
+
+  useEffect(() => {
+    return subscribeToFocusingCount(setFocusingCount);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Refetch count every time home tab comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchFocusingCount().then(setFocusingCount);
+    }, [setFocusingCount])
+  );
 
   const [petMessage, setPetMessage] = useState<string | null>(null);
   const [dialogueMessage, setDialogueMessage] = useState('');
@@ -267,6 +281,12 @@ export default function HomeScreen() {
           <XPBar xp={xp} />
         </View>
 
+        {focusingCount > 0 && (
+          <Text style={[styles.focusingCount, { color: t.textMuted }]}>
+            🌍 {focusingCount} {focusingCount === 1 ? 'person' : 'people'} focusing right now
+          </Text>
+        )}
+
         <View style={styles.statsRow}>
           <StatCard icon="💛" label="Happiness" value={`${happiness}%`}           color={t.happiness}   bg={t.surface} labelColor={t.textMuted} />
           <StatCard icon="⭐" label="Level"     value={String(level)}             color={t.focusAccent} bg={t.surface} labelColor={t.textMuted} />
@@ -468,6 +488,11 @@ const styles = StyleSheet.create({
   },
   xpSection: {
     width: '100%',
+  },
+  focusingCount: {
+    fontSize: 13,
+    textAlign: 'center',
+    marginTop: 4,
   },
   statsRow: {
     flexDirection: 'row',

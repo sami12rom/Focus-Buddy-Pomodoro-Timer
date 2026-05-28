@@ -2,7 +2,7 @@
 
 **Focus with a companion that grows with you.**
 
-A gamified Pomodoro timer for iOS and Android where a virtual companion evolves through completed focus sessions. Every session earns XP, raises happiness, and pushes your companion toward the next evolution stage — turning a productivity habit into an emotional ritual.
+A gamified Pomodoro timer for Android where a virtual companion evolves through completed focus sessions. Every session earns XP, raises happiness, and pushes your companion toward the next evolution stage — turning a productivity habit into an emotional ritual.
 
 ---
 
@@ -11,6 +11,8 @@ A gamified Pomodoro timer for iOS and Android where a virtual companion evolves 
 - **Pomodoro timer** — configurable focus and break durations via preset chips and stepper controls
 - **Evolving companion** — 5 custom PNG evolution stages (Egg → Hatchling → Baby → Teen → Adult) driven by XP and level
 - **Automatic Pomodoro loop** — break starts automatically after focus completes; long break triggers after every 4th session
+- **Post-session goal confirmation** — single-tap Done / Partial / No row in the reward modal when a task was set; outcome stored alongside session history
+- **Android live timer notification** — foreground service keeps a live countdown in the notification shade while the app is backgrounded; updates every second via notifee
 - **Session history** — last 100 completed sessions stored; 7-day bar chart and recent list in Stats
 - **Daily focus goals** — configurable session and minute targets with progress on Home and Stats
 - **Session tags** — categorize sessions as Work, Study, Reading, Chores, or Deep Work
@@ -45,7 +47,7 @@ A gamified Pomodoro timer for iOS and Android where a virtual companion evolves 
 | State | Zustand v4 with `persist` middleware + AsyncStorage |
 | Animations | react-native-reanimated |
 | SVG | react-native-svg |
-| Notifications | expo-notifications |
+| Notifications | expo-notifications + notifee |
 | Haptics | expo-haptics |
 | Keep Awake | expo-keep-awake |
 | Audio | expo-av |
@@ -59,7 +61,7 @@ A gamified Pomodoro timer for iOS and Android where a virtual companion evolves 
 
 ```
 app/
-  _layout.tsx          — Root layout: tabs, theme-aware tab bar, Android notification channel
+  _layout.tsx          — Root layout: tabs, theme-aware tab bar, Android notification channel, foreground service registration
   focus.tsx            — Full-screen timer: setup, focus running, final-minute extension prompt, break running phases
   (tabs)/
     index.tsx          — Home: companion, speech bubble, XP bar, daily goals, recovery modal
@@ -77,7 +79,7 @@ components/
   SessionBanner.tsx      — Live countdown banner shown on Home/Stats during active session
   BreathingAnimation.tsx — Four-phase expand/hold/contract/rest breathing cue during breaks
   ShareStatsCard.tsx     — Fixed-style PNG card used for the share feature
-  RewardModal.tsx        — Post-focus reward sheet (XP gained, level-up, evolution)
+  RewardModal.tsx        — Post-focus reward sheet (XP gained, level-up, evolution, goal confirmation)
   BreakEndModal.tsx      — Post-break choice: start next focus or finish for now
   RecoveryModal.tsx      — Recovery prompt on relaunch after app killed mid-session
   OnboardingModal.tsx    — First-launch 3-step flow: intro, name companion, set daily goal
@@ -86,7 +88,7 @@ store/
   companionStore.ts      — Name, level, XP, happiness, evolution stage, pet history, onboarding flag
   statsStore.ts          — Total sessions, streak, best streak, focus minutes, unlocked achievements
   sessionStore.ts        — Timer status, durations, cycle counter, active session snapshot
-  sessionHistoryStore.ts — Last 100 completed sessions (date, task, tag, duration)
+  sessionHistoryStore.ts — Last 100 completed sessions (date, task, tag, duration, goalOutcome)
   settingsStore.ts       — Sound, haptics, keep-awake, auto-start break, ambient sound layers + volume
   themeStore.ts          — Active theme ID
   goalStore.ts           — Daily session goal and daily minute goal
@@ -117,7 +119,8 @@ utils/
   gameLogic.ts       — Streak, decay, pet limit, 7-day chart, month grid, tag totals
   insights.ts        — 5 focus insights computed from session history
   mood.ts            — Happiness → Mood type + emoji/label maps
-  notifications.ts   — Schedule, cancel, and fire local notifications
+  notifications.ts       — Schedule, cancel, and fire local notifications
+  timerNotification.ts   — Android foreground service: live countdown notification via notifee, start/update/stop API
   resetAppData.ts    — Calls resetToDefaults() on all stores
   sessionStats.ts    — getTodayFocusMinutes, goalProgress (shared between Home + Stats)
   xp.ts              — getLevelForXP, getEvolutionStage, isMaxLevel
@@ -160,6 +163,10 @@ npm test
 **Focus extension** — the active focus screen shows a non-blocking final-minute prompt with +5 / +10 minute actions. Ignoring it lets the session finish normally; extending updates the active duration and notification schedule, and completed stats use the extended duration.
 
 **Ambient audio** — `useAmbientSound` sets `playsInSilentModeIOS: true` and `staysActiveInBackground: true` on mount. It can run up to 2 ambient sound layers at once, balances combined volume with a simple mix gain, and uses 50ms fade ramps to avoid abrupt cuts. Playback sync uses a run guard so quick pause/resume taps cannot let a stale fade-out pause the sound after resume.
+
+**Android live timer notification** — `timerNotification.ts` runs a notifee foreground service that ticks every second, computing remaining time from the same wall-clock formula as the in-app timer (`activeDurationMs − (Date.now() − startTime − totalPausedMs)`). Timer state (status, startTime, totalPausedMs, pausedAt) travels via the notification's own `data` field — updated by the main thread on pause/resume, re-read by the service each tick. This keeps the service stateless and avoids any AsyncStorage round-trips on the hot path.
+
+**Goal confirmation** — `RewardModal` replaces the Continue button with a Done / Partial / No row when a task was set. Each tap stores `goalOutcome` on the `SessionHistoryEntry` via `updateEntryOutcome`, giving future insights a signal beyond completion alone.
 
 **Companion dialogue** — `getCompanionMessage` evaluates 8 priority tiers in order on every home screen focus. The fallback pool uses a day-seeded index so the message is stable throughout the day but changes daily without any server call.
 
@@ -216,7 +223,7 @@ Prioritised by impact and implementation effort. Each phase builds on the previo
 
 | # | Feature | Why |
 |---|---------|-----|
-| 9  | **Home screen widget + Live Activity** | Timer countdown visible without opening the app. Dynamic Island support. Most requested feature across all competing apps |
+| ✅ | ~~Android live timer notification~~ | Done — notifee foreground service shows live countdown in notification shade; updates every second even when app is backgrounded |
 | 10 | **Task list with Pomodoro estimates** | Create tasks, set estimated session count, link a task to each focus session. Time accumulates against the task. Your session tags are already halfway there |
 | 11 | **Lofi / relaxing music** | Add licensed local lofi loops or relaxing break music as sound options. Prefer bundled licensed tracks over an internet stream for reliability and licensing clarity |
 | 12 | **Companion customization shop** | Earn coins per completed session. Spend coins on companion accessories, background themes, and egg skins. Study Bunny's furniture/cosmetics system is their #1 retention driver — Focus Buddy's evolution system makes this a natural extension |
@@ -230,20 +237,20 @@ Prioritised by impact and implementation effort. Each phase builds on the previo
 
 | # | Feature | Why |
 |---|---------|-----|
-| 13 | **App blocking (Screen Time API)** | Lock out distracting apps during focus via iOS `FamilyControls`. The #1 premium feature that makes users pay. Requires a native module — no Expo package exists yet |
-| 14 | **iCloud sync + iPad layout** | Sync session history and companion state via CloudKit. Prevents the "I got a new phone and lost everything" 1-star review. Add responsive iPad layout alongside |
-| 15 | **Apple Watch app** | Start/stop timer and see countdown on wrist. Multiple apps lose reviews specifically for not having this. Requires a watchOS extension target |
+| 13 | **Android app blocking** | Lock out distracting apps during focus via Android's `UsageStatsManager` + accessibility service. The #1 premium feature that makes users pay |
+| 14 | **Cloud backup** | Sync session history and companion state so users don't lose data on a new phone. Supabase or Firebase, anonymous auth |
+| 15 | **Home screen widget** | Timer countdown visible without opening the app. Uses Android WidgetKit (Java/Kotlin, separate process). Most requested feature across competing apps |
 | 16 | **Social / body doubling — Phase A: live counter** | Supabase `active_sessions` table + Realtime subscription. Focus start inserts a row; focus end deletes it. Home screen shows "X people focusing right now". Anonymous, no accounts needed. ~2 days |
 | 17 | **Social / body doubling — Phase B: focus rooms** | 6-char room codes (e.g. `TIGER3`). Create a room or join a friend's. See each other's timer and status in real time. Adds accountability on top of the anonymous counter. ~1 week |
 | 18 | **Leaderboards** | Weekly and monthly focus-time leaderboards among friends. Pairs naturally with focus rooms — once users have friend connections, surface who focused most this week. Drives retention through friendly competition |
-| 19 | **Calendar integration** | Link focus sessions to Apple Calendar / Google Calendar events. User taps a calendar event → session pre-fills task name and duration. Most requested feature in Flow and Be Focused reviews |
+| 19 | **Calendar integration** | Link focus sessions to Google Calendar events. User taps a calendar event → session pre-fills task name and duration |
 
 ---
 
 ### Strategic Notes
 
 - **The pet system is an underexploited moat.** Study Bunny has the highest user sentiment in academic research on gamified focus apps purely because of pet emotional attachment. Focus Buddy's evolution system is more sophisticated, and the pet now appears in the pre-session and break rituals. Adding a cosmetics shop (Phase 3) turns the companion into a long-term retention loop — users come back to earn coins, not just to focus.
-- **App blocking is the clearest path to monetization.** Without it, the premium offering relies entirely on cosmetic unlocks. Every successfully monetised timer app has app blocking behind the paywall.
+- **App blocking is the clearest path to monetization.** Without it, the premium offering relies entirely on cosmetic unlocks. Every successfully monetised timer app has app blocking behind the paywall. On Android this uses `UsageStatsManager` + an accessibility service.
 - **Social is the fastest-growing category.** Focusmate and Focumon are growing purely on co-working features. Focus Buddy can enter this space cheaply with the anonymous counter (2 days) and expand to rooms later. The companion makes social feel warmer than competitors — "focusing with your buddy alongside a friend's buddy" is a unique angle no other app has.
-- **ADHD positioning costs nothing.** Tiimo won Apple's iPhone App of the Year 2025 on ADHD positioning alone. Focus Buddy's soft gamification and companion are inherently ADHD-friendly. A few App Store keyword and screenshot changes could meaningfully move downloads with zero engineering.
+- **ADHD positioning costs nothing.** Focus Buddy's soft gamification and companion are inherently ADHD-friendly. A few Play Store keyword and screenshot changes could meaningfully move downloads with zero engineering.
 - **Adaptive suggestions close the loop.** Most apps show stats but never act on them. Telling a user "you focus best at 9am on Work sessions" — derived from their own data — creates a feeling of personalisation that no competitor currently offers at this price point.

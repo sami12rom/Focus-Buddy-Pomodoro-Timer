@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { setupAndroidNotificationChannel, requestNotificationPermissions } from '../utils/notifications';
 import { registerTimerForegroundService } from '../utils/timerNotification';
+import { cleanupStaleSession } from '../utils/activeSessionSync';
 import { useThemeStore } from '../store/themeStore';
 import { useCompanionStore } from '../store/companionStore';
 import { useStatsStore } from '../store/statsStore';
@@ -24,6 +25,7 @@ export default function RootLayout() {
     setupAndroidNotificationChannel();
     requestNotificationPermissions();
     ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+    cleanupStaleSession();
   }, []);
 
   useEffect(() => {
