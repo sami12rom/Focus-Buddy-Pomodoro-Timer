@@ -3,11 +3,15 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { setupAndroidNotificationChannel, requestNotificationPermissions } from '../utils/notifications';
+import { registerTimerForegroundService } from '../utils/timerNotification';
 import { useThemeStore } from '../store/themeStore';
 import { useCompanionStore } from '../store/companionStore';
 import { useStatsStore } from '../store/statsStore';
 import { THEMES } from '../constants/colors';
 import { getLocalDateKey } from '../utils/date';
+
+// Must run before any component mounts
+registerTimerForegroundService();
 
 export default function RootLayout() {
   const activeThemeId = useThemeStore((s) => s.activeThemeId);

@@ -31,7 +31,11 @@
       },
       "package": "com.techbytestudio.focusbuddy",
       "versionCode": 22,
-      "enableProguardInReleaseBuilds": false
+      "enableProguardInReleaseBuilds": false,
+      "permissions": [
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_DATA_SYNC"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -42,7 +46,8 @@
           "color": "#ffffff"
         }
       ],
-      "./plugins/removeRecordAudio"
+      "./plugins/removeRecordAudio",
+      "@notifee/react-native"
     ],
     "experiments": {
       "typedRoutes": true

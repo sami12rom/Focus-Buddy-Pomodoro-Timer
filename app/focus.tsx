@@ -47,6 +47,11 @@ import {
   fireCompletionAlarm,
   fireAchievementNotification,
 } from '../utils/notifications';
+import {
+  startTimerNotification,
+  updateTimerNotification,
+  stopTimerNotification,
+} from '../utils/timerNotification';
 import { getAchievements } from '../utils/achievements';
 import * as Haptics from 'expo-haptics';
 import * as StoreReview from 'expo-store-review';
@@ -156,6 +161,7 @@ export default function TimerScreen() {
     extensionPromptShownRef.current = false;
     deactivateKeepAwake();
     cancelScheduledNotification();
+    void stopTimerNotification();
     if (soundEnabled) fireCompletionAlarm('focus');
     if (hapticsEnabled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
@@ -232,6 +238,7 @@ export default function TimerScreen() {
   const handleBreakComplete = useCallback(() => {
     deactivateKeepAwake();
     cancelScheduledNotification();
+    void stopTimerNotification();
     if (soundEnabled) fireCompletionAlarm('break');
     if (hapticsEnabled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     if (isCurrentBreakLong) {
@@ -268,6 +275,16 @@ export default function TimerScreen() {
     startFocus();
     if (keepAwakeEnabled) activateKeepAwakeAsync();
     scheduleSessionEndNotification(selectedFocusMinutes * 60_000, 'focus');
+    const s = useSessionStore.getState();
+    void startTimerNotification({
+      status: 'running',
+      startTime: s.startTime!,
+      activeDurationMs: s.activeDurationMs!,
+      totalPausedMs: s.totalPausedMs,
+      pausedAt: null,
+      task: taskInput,
+      sessionType: 'focus',
+    });
   }
 
   function handleStartBreak() {
@@ -276,6 +293,16 @@ export default function TimerScreen() {
     const breakDurationMs = startBreak(true);
     if (keepAwakeEnabled) activateKeepAwakeAsync();
     scheduleSessionEndNotification(breakDurationMs, 'break');
+    const s = useSessionStore.getState();
+    void startTimerNotification({
+      status: 'running',
+      startTime: s.startTime!,
+      activeDurationMs: breakDurationMs,
+      totalPausedMs: 0,
+      pausedAt: null,
+      task: '',
+      sessionType: 'break',
+    });
   }
 
   function adjustFocusMinutes(delta: number) {
@@ -290,11 +317,31 @@ export default function TimerScreen() {
   function handlePauseFocus() {
     pauseFocus();
     cancelScheduledNotification();
+    const s = useSessionStore.getState();
+    void updateTimerNotification({
+      status: 'paused',
+      startTime: s.startTime!,
+      activeDurationMs: s.activeDurationMs!,
+      totalPausedMs: s.totalPausedMs,
+      pausedAt: s.pausedAt,
+      task: taskInput,
+      sessionType: 'focus',
+    });
   }
 
   function handleResumeFocus() {
     resumeFocus();
     scheduleSessionEndNotification(focusTimer.remainingMs, 'focus');
+    const s = useSessionStore.getState();
+    void updateTimerNotification({
+      status: 'running',
+      startTime: s.startTime!,
+      activeDurationMs: s.activeDurationMs!,
+      totalPausedMs: s.totalPausedMs,
+      pausedAt: null,
+      task: taskInput,
+      sessionType: 'focus',
+    });
   }
 
   function handleCancelFocus() {
@@ -305,6 +352,7 @@ export default function TimerScreen() {
     extensionPromptShownRef.current = false;
     reset();
     clearSnapshot();
+    void stopTimerNotification();
   }
 
   function handleExtendFocus(minutes: number) {
@@ -322,6 +370,16 @@ export default function TimerScreen() {
     const breakDurationMs = startBreak();
     if (keepAwakeEnabled) activateKeepAwakeAsync();
     scheduleSessionEndNotification(breakDurationMs, 'break');
+    const s = useSessionStore.getState();
+    void startTimerNotification({
+      status: 'running',
+      startTime: s.startTime!,
+      activeDurationMs: breakDurationMs,
+      totalPausedMs: 0,
+      pausedAt: null,
+      task: '',
+      sessionType: 'break',
+    });
   }
 
   // Auto-start break countdown when reward modal is shown
@@ -346,11 +404,31 @@ export default function TimerScreen() {
   function handlePauseBreak() {
     pauseBreak();
     cancelScheduledNotification();
+    const s = useSessionStore.getState();
+    void updateTimerNotification({
+      status: 'paused',
+      startTime: s.startTime!,
+      activeDurationMs: s.activeDurationMs!,
+      totalPausedMs: s.totalPausedMs,
+      pausedAt: s.pausedAt,
+      task: '',
+      sessionType: 'break',
+    });
   }
 
   function handleResumeBreak() {
     resumeBreak();
     scheduleSessionEndNotification(breakTimer.remainingMs, 'break');
+    const s = useSessionStore.getState();
+    void updateTimerNotification({
+      status: 'running',
+      startTime: s.startTime!,
+      activeDurationMs: s.activeDurationMs!,
+      totalPausedMs: s.totalPausedMs,
+      pausedAt: null,
+      task: '',
+      sessionType: 'break',
+    });
   }
 
   function handlePetCompanion() {
