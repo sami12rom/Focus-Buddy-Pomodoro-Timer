@@ -83,7 +83,7 @@ export default function TimerScreen() {
 
   const { evolutionStage, applyFocusReward, applyBreakInteraction } = useCompanionStore();
   const { todaySessions, recordCompletedSession, recordLongBreakCompleted, markAchievementsNotified } = useStatsStore();
-  const { addEntry } = useSessionHistoryStore();
+  const { addEntry, updateEntryOutcome } = useSessionHistoryStore();
   const { soundEnabled, hapticsEnabled, keepAwakeEnabled, autoStartBreak, ambientSounds, toggleAmbientSound } = useSettingsStore();
 
   const [taskInput, setTaskInput] = useState('');
@@ -97,6 +97,7 @@ export default function TimerScreen() {
   const [breakPetAnimationTrigger, setBreakPetAnimationTrigger] = useState(0);
   const rewardDismissedRef = useRef(false);
   const extensionPromptShownRef = useRef(false);
+  const lastEntryIdRef = useRef<string | null>(null);
 
   const { width, height } = useWindowDimensions();
   const isLandscape = width > height;
@@ -172,7 +173,7 @@ export default function TimerScreen() {
 
     // Add session history entry
     const today = getLocalDateKey();
-    addEntry({
+    lastEntryIdRef.current = addEntry({
       date: today,
       task: taskInput,
       tag: currentTag,
@@ -767,7 +768,16 @@ export default function TimerScreen() {
           </TouchableOpacity>
         )}
 
-        <RewardModal visible={showReward} result={rewardResult} task={taskInput} onDismiss={handleRewardDismiss} autoStartCountdown={autoStartBreak ? autoStartCountdown : undefined} />
+        <RewardModal
+          visible={showReward}
+          result={rewardResult}
+          task={taskInput}
+          onDismiss={handleRewardDismiss}
+          onGoalOutcome={(outcome) => {
+            if (lastEntryIdRef.current) updateEntryOutcome(lastEntryIdRef.current, outcome);
+          }}
+          autoStartCountdown={autoStartBreak ? autoStartCountdown : undefined}
+        />
         {soundPickerModal}
       </Animated.ScrollView>
     );

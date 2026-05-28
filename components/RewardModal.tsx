@@ -2,6 +2,7 @@ import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { FocusRewardResult } from '../store/companionStore';
+import { GoalOutcome } from '../store/sessionHistoryStore';
 import { EVOLUTION_STAGE_NAMES } from '../constants/game';
 import { useTheme } from '../hooks/useTheme';
 
@@ -10,10 +11,11 @@ interface Props {
   result: FocusRewardResult | null;
   task?: string;
   onDismiss: () => void;
+  onGoalOutcome?: (outcome: GoalOutcome) => void;
   autoStartCountdown?: number;
 }
 
-export default function RewardModal({ visible, result, task, onDismiss, autoStartCountdown }: Props) {
+export default function RewardModal({ visible, result, task, onDismiss, onGoalOutcome, autoStartCountdown }: Props) {
   const t = useTheme();
   if (!result) return null;
 
@@ -37,12 +39,6 @@ export default function RewardModal({ visible, result, task, onDismiss, autoStar
             <Text style={[styles.mainTitle, { color: t.textPrimary }]}>🎉 Session Complete!</Text>
           )}
 
-          {task ? (
-            <Text style={[styles.taskLine, { color: t.textMuted }]}>
-              You completed: <Text style={{ color: t.textPrimary, fontWeight: '600' }}>{task}</Text>
-            </Text>
-          ) : null}
-
           <View style={styles.rewards}>
             <RewardRow icon="⚡" label="XP"        value={`+${result.xpGained}`}        color={t.focusAccent} bg={t.surfaceRaised} labelColor={t.textSecondary} />
             <RewardRow icon="💛" label="Happiness" value={`+${result.happinessGained}`} color={t.xpGold}      bg={t.surfaceRaised} labelColor={t.textSecondary} />
@@ -54,15 +50,43 @@ export default function RewardModal({ visible, result, task, onDismiss, autoStar
             </Text>
           )}
 
-          <TouchableOpacity
-            style={[styles.button, { backgroundColor: t.focusAccent }]}
-            onPress={onDismiss}
-            activeOpacity={0.8}
-          >
-            <Text style={styles.buttonText}>
-              {autoStartCountdown !== undefined ? 'Start Now' : 'Continue →'}
-            </Text>
-          </TouchableOpacity>
+          {task && onGoalOutcome ? (
+            <>
+              <Text style={[styles.goalQuestion, { color: t.textMuted }]}>
+                Did you finish:{' '}
+                <Text style={{ color: t.textPrimary, fontWeight: '600' }}>{task}</Text>
+              </Text>
+              <View style={styles.outcomeRow}>
+                {(['done', 'partial', 'no'] as GoalOutcome[]).map((outcome) => (
+                  <TouchableOpacity
+                    key={outcome}
+                    style={[styles.outcomeButton, { borderColor: t.focusAccent + '55', backgroundColor: t.surfaceRaised }]}
+                    onPress={() => { onGoalOutcome(outcome); onDismiss(); }}
+                    activeOpacity={0.75}
+                  >
+                    <Text style={[styles.outcomeIcon, {
+                      color: outcome === 'done' ? '#4ADE80' : outcome === 'partial' ? t.xpGold : t.textMuted,
+                    }]}>
+                      {outcome === 'done' ? '✓' : outcome === 'partial' ? '~' : '✗'}
+                    </Text>
+                    <Text style={[styles.outcomeLabel, { color: t.textSecondary }]}>
+                      {outcome === 'done' ? 'Done' : outcome === 'partial' ? 'Partial' : 'No'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          ) : (
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: t.focusAccent }]}
+              onPress={onDismiss}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.buttonText}>
+                {autoStartCountdown !== undefined ? 'Start Now' : 'Continue →'}
+              </Text>
+            </TouchableOpacity>
+          )}
         </Animated.View>
       </View>
     </Modal>
@@ -118,6 +142,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     marginTop: -8,
+  },
+  goalQuestion: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: -8,
+  },
+  outcomeRow: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
+  },
+  outcomeButton: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    gap: 4,
+  },
+  outcomeIcon: {
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  outcomeLabel: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   rewards: {
     width: '100%',

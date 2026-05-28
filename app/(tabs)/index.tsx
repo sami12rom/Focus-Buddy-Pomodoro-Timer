@@ -51,7 +51,8 @@ export default function HomeScreen() {
   } = useStatsStore();
   const resetTodayIfNewDay = useStatsStore((s) => s.resetTodayIfNewDay);
   const { activeSessionSnapshot, reset: resetSession, resumeFromSnapshot, clearSnapshot } = useSessionStore();
-  const { entries, addEntry } = useSessionHistoryStore();
+  const { entries, addEntry, updateEntryOutcome } = useSessionHistoryStore();
+  const recoveryEntryIdRef = useRef<string | null>(null);
   const { hapticsEnabled } = useSettingsStore();
   const { dailySessionGoal, dailyMinuteGoal, setDailySessionGoal } = useGoalStore();
 
@@ -171,7 +172,7 @@ export default function HomeScreen() {
     const result = applyFocusReward();
     const durationMinutes = Math.round(snap.durationMs / 60_000);
     recordCompletedSession(durationMinutes);
-    addEntry({
+    recoveryEntryIdRef.current = addEntry({
       date: getLocalDateKey(new Date(snap.createdAt)),
       task: snap.task,
       tag: snap.tag ?? DEFAULT_SESSION_TAG,
@@ -328,6 +329,9 @@ export default function HomeScreen() {
         onDismiss={() => {
           setShowRecoveryReward(false);
           setRecoveryRewardTask('');
+        }}
+        onGoalOutcome={(outcome) => {
+          if (recoveryEntryIdRef.current) updateEntryOutcome(recoveryEntryIdRef.current, outcome);
         }}
       />
     </View>

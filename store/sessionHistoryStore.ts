@@ -4,6 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SESSION_HISTORY_MAX } from '../constants/game';
 import { DEFAULT_SESSION_TAG, SessionTag } from '../constants/sessionTags';
 
+export type GoalOutcome = 'done' | 'partial' | 'no';
+
 export interface SessionHistoryEntry {
   id: string;
   date: string;            // YYYY-MM-DD
@@ -11,6 +13,7 @@ export interface SessionHistoryEntry {
   tag: SessionTag;
   durationMinutes: number;
   completedAt: string;     // ISO timestamp
+  goalOutcome?: GoalOutcome;
 }
 
 interface SessionHistoryState {
@@ -19,7 +22,8 @@ interface SessionHistoryState {
 
 interface SessionHistoryActions {
   // Only call this for completed focus sessions — not cancelled, not break
-  addEntry: (entry: Omit<SessionHistoryEntry, 'id'>) => void;
+  addEntry: (entry: Omit<SessionHistoryEntry, 'id'>) => string;
+  updateEntryOutcome: (id: string, outcome: GoalOutcome) => void;
   clearHistory: () => void;
   resetToDefaults: () => void;
 }
@@ -29,10 +33,17 @@ export const useSessionHistoryStore = create<SessionHistoryState & SessionHistor
     (set, get) => ({
       entries: [],
 
-      addEntry: (entry) => {
+      addEntry: (entry): string => {
         const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
         const updated = [{ ...entry, id }, ...get().entries].slice(0, SESSION_HISTORY_MAX);
         set({ entries: updated });
+        return id;
+      },
+
+      updateEntryOutcome: (id, outcome) => {
+        set({
+          entries: get().entries.map((e) => e.id === id ? { ...e, goalOutcome: outcome } : e),
+        });
       },
 
       clearHistory: () => set({ entries: [] }),

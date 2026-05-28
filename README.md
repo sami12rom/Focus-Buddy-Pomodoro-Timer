@@ -203,7 +203,7 @@ Prioritised by impact and implementation effort. Each phase builds on the previo
 | # | Feature | Why |
 |---|---------|-----|
 | ✅ | ~~Pre-session intention UX~~ | Done — companion asks "What are you working on?", task input is primary, tag-specific examples guide the placeholder |
-| 6 | **Post-session reflection** | One-line "What did you accomplish?" input in `RewardModal`. Store alongside session history. Low build cost, high perceived value |
+| ✅ | ~~Post-session reflection~~ | Done — single-tap goal confirmation (Done / Partial / No) in `RewardModal` when a task was set. Outcome stored as `goalOutcome` in `sessionHistoryStore` |
 | 7 | **CSV data export** | Button in Settings → generate CSV from `sessionHistoryStore` → share via `expo-sharing` (already installed) |
 | ✅ | ~~Ambient sound mixing~~ | Done — up to 2 selected sound layers, `None` clears selection, `useAmbientSound` manages multiple `Audio.Sound` instances |
 | 8  | **Task Parking Lot** | Quick capture for intrusive thoughts during a session ("look up X", "reply to Y", "buy batteries"). A lightweight note list visible during focus — items persist until manually cleared. Removes the pressure of trusting memory and makes staying on-task easier for ADHD users. Storage: a simple string array in `sessionStore` or `settingsStore`. No new libraries needed |
