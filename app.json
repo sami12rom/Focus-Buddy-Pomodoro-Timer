@@ -3,7 +3,7 @@
     "name": "Focus Buddy",
     "slug": "focus-buddy",
     "scheme": "focusbuddy",
-    "version": "1.0.24",
+    "version": "1.0.25",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "userInterfaceStyle": "automatic",
@@ -30,11 +30,11 @@
         "backgroundColor": "#1a1a2e"
       },
       "package": "com.techbytestudio.focusbuddy",
-      "versionCode": 24,
+      "versionCode": 25,
       "enableProguardInReleaseBuilds": false,
       "permissions": [
         "FOREGROUND_SERVICE",
-        "FOREGROUND_SERVICE_DATA_SYNC"
+        "FOREGROUND_SERVICE_MEDIA_PLAYBACK"
       ]
     },
     "plugins": [
