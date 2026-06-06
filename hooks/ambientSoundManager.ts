@@ -43,13 +43,14 @@ export class AmbientSoundManager<T extends SoundLike = SoundLike> {
   rampTo(id: string, sound: T, toRatio: number, durationMs: number): Promise<void> {
     this.stopFade(id); // resolves any prior rampTo for this id
     const fromRatio = toRatio > 0 ? 0 : 1;
-    const steps = Math.max(1, Math.round(durationMs / 50));
-    let step = 0;
+    // Wall-clock start time: if the app was suspended while a fade was running,
+    // the first callback after resume sees elapsed >> durationMs, snaps to the
+    // target volume in one call, and exits — no backlog of bridge calls.
+    const startTime = Date.now();
     return new Promise((resolve) => {
       this.fadeResolversRef[id] = resolve; // stored so stopFade can call it
       this.fadeTimerRefs[id] = setInterval(async () => {
-        step++;
-        const progress = Math.min(step / steps, 1);
+        const progress = Math.min((Date.now() - startTime) / durationMs, 1);
         const ratio = fromRatio + (toRatio - fromRatio) * progress;
         try {
           await sound.setVolumeAsync(this.targetVolume(ratio));
@@ -58,7 +59,7 @@ export class AmbientSoundManager<T extends SoundLike = SoundLike> {
           this.stopFade(id);
           return;
         }
-        if (step >= steps) {
+        if (progress >= 1) {
           this.stopFade(id);
         }
       }, 50);

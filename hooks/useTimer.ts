@@ -89,7 +89,20 @@ export function useTimer(mode: 'focus' | 'break', onComplete: () => void): UseTi
   tickRef.current = tick;
   useEffect(() => {
     const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
-      if (next === 'active') tickRef.current();
+      if (next !== 'active') return;
+      // Clear the existing interval before ticking: on Samsung (and other devices
+      // with aggressive battery optimization), the JS thread can be fully frozen
+      // in the background, causing accumulated interval callbacks to fire in a
+      // burst on resume. Clearing and restarting gives us exactly one fresh tick.
+      const wasRunning = intervalRef.current !== null;
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      tickRef.current();
+      if (wasRunning && !completedRef.current) {
+        intervalRef.current = setInterval(() => tickRef.current(), 500);
+      }
     });
     return () => sub.remove();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps

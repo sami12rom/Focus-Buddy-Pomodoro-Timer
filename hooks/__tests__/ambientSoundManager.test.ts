@@ -86,6 +86,32 @@ describe('AmbientSoundManager', () => {
     });
   });
 
+  // ─── Background-resume: accumulated callbacks should not flood the bridge ────
+
+  describe('rampTo — background resume', () => {
+    it('completes in one callback when the app resumes after the fade duration has already elapsed', async () => {
+      const sound = createMockSound();
+
+      // Start a 1000 ms fade-in.
+      const rampPromise = manager.rampTo('forest', sound, 1, 1_000);
+
+      // Simulate the phone locking and the app being frozen mid-fade:
+      // jump Date.now() forward by 5 minutes without firing any timer callbacks.
+      jest.setSystemTime(Date.now() + 5 * 60 * 1_000);
+
+      // Fire just one interval callback (what happens when the app thaws).
+      await jest.advanceTimersByTimeAsync(50);
+
+      // The promise should resolve immediately — progress was 1.0 on the first callback.
+      await expect(rampPromise).resolves.toBeUndefined();
+
+      // setVolumeAsync should have been called exactly once with the final target volume.
+      expect(sound.setVolumeAsync).toHaveBeenCalledTimes(1);
+      const calledWith = sound.setVolumeAsync.mock.calls[0][0] as number;
+      expect(calledWith).toBeCloseTo(1.0);
+    });
+  });
+
   // ─── Bug 3: unloadSound hangs when its rampTo is cut short ───────────────────
 
   describe('unloadSound — hangs when rampTo is interrupted', () => {

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { Audio } from 'expo-av';
 import { useSettingsStore } from '../store/settingsStore';
 import { AMBIENT_SOUNDS, BREAK_SOUNDS } from '../constants/sounds';
@@ -85,6 +86,18 @@ export function useAmbientSound({ isRunning, isBreak }: Props) {
     return () => {
       manager.dispose();
     };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When the app returns to the foreground, stop any in-flight fades immediately
+  // and snap volumes to their correct values. This prevents a backlog of suspended
+  // 50 ms interval callbacks from flooding the audio bridge on resume.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next: AppStateStatus) => {
+      if (next !== 'active') return;
+      manager.stopAllFades();
+      void updateLoadedVolumes();
+    });
+    return () => sub.remove();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load / unload when selected sounds change
