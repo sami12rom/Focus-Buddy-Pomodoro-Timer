@@ -132,15 +132,25 @@ if [[ -n "$LAST_TAG" ]]; then
 
   # Append this version's notes to CHANGELOG.md for permanent history
   TODAY=$(date '+%Y-%m-%d')
-  ENTRY="## v$NEW_VERSION ($TODAY)\n$(cat "$NOTES_FILE")\n"
+  TEMP_CHANGELOG=$(mktemp "$ROOT/.CHANGELOG.md.XXXXXX")
   if [[ -f "$CHANGELOG" ]]; then
     # Insert after the first line (the # Changelog heading)
     HEADING=$(head -1 "$CHANGELOG")
-    REST=$(tail -n +2 "$CHANGELOG")
-    printf "%s\n\n%s\n%s" "$HEADING" "$ENTRY" "$REST" > "$CHANGELOG"
+    {
+      printf '%s\n\n' "$HEADING"
+      printf '## v%s (%s)\n\n' "$NEW_VERSION" "$TODAY"
+      awk '{ lines[NR] = $0; if (NF) last = NR } END { for (i = 1; i <= last; i++) print lines[i] }' "$NOTES_FILE"
+      printf '\n'
+      tail -n +2 "$CHANGELOG" | awk 'NR == 1 && /^[[:space:]]*$/ { next } { print }'
+    } > "$TEMP_CHANGELOG"
   else
-    printf "# Changelog\n\n%s" "$ENTRY" > "$CHANGELOG"
+    {
+      printf '# Changelog\n\n'
+      printf '## v%s (%s)\n\n' "$NEW_VERSION" "$TODAY"
+      awk '{ lines[NR] = $0; if (NF) last = NR } END { for (i = 1; i <= last; i++) print lines[i] }' "$NOTES_FILE"
+    } > "$TEMP_CHANGELOG"
   fi
+  mv "$TEMP_CHANGELOG" "$CHANGELOG"
   echo "✓ CHANGELOG.md updated"
 fi
 
