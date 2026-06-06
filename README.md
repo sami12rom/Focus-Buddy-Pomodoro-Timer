@@ -221,7 +221,7 @@ Prioritised by impact and implementation effort. Each phase builds on the previo
 | 7 | **CSV data export** | Button in Settings → generate CSV from `sessionHistoryStore` → share via `expo-sharing` (already installed) |
 | ✅ | ~~Ambient sound mixing~~ | Done — up to 2 selected sound layers, `None` clears selection, `useAmbientSound` manages multiple `Audio.Sound` instances |
 | 8  | **Task Parking Lot** | Quick capture for intrusive thoughts during a session ("look up X", "reply to Y", "buy batteries"). A lightweight note list visible during focus — items persist until manually cleared. Removes the pressure of trusting memory and makes staying on-task easier for ADHD users. Storage: a simple string array in `sessionStore` or `settingsStore`. No new libraries needed |
-| 9  | **Gentle Restart Button** | If the user drifts off-task, one tap says "I'm back" and resumes the timer without resetting. The recovery is logged separately from failures — the session completes normally and the stats reflect a recovery rather than an abandon. Pairs with the existing session recovery snapshot; the only change is surfacing the action mid-session and tagging completed sessions with a `recovered` flag |
+| ✅ | ~~**Gentle Restart Button**~~ | Done — "↩ I drifted — I'm back" button on the focus screen sets a `recoveredInSession` flag and resumes if paused; completed sessions are tagged with `recovered: true` in session history |
 
 ---
 

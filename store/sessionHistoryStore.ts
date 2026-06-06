@@ -14,6 +14,7 @@ export interface SessionHistoryEntry {
   durationMinutes: number;
   completedAt: string;     // ISO timestamp
   goalOutcome?: GoalOutcome;
+  recovered?: boolean;     // true if user tapped "I'm back" during the session
 }
 
 interface SessionHistoryState {

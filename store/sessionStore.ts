@@ -37,6 +37,7 @@ interface SessionState {
   totalPausedMs: number;
   activeDurationMs: number | null;
   breakInteracted: boolean;
+  recoveredInSession: boolean;
 
   // User-chosen durations (persisted)
   selectedFocusMinutes: number;
@@ -76,6 +77,7 @@ interface SessionActions {
 
   incrementCycle: () => void;
   resetCycle: () => void;
+  markSessionRecovered: () => void;
   clearSnapshot: () => void;
   resumeFromSnapshot: () => void;
   resetToDefaults: () => void;
@@ -88,6 +90,7 @@ const timerInitial = {
   totalPausedMs: 0,
   activeDurationMs: null,
   breakInteracted: false,
+  recoveredInSession: false,
   currentTask: '',
   currentTag: DEFAULT_SESSION_TAG,
   completedFocusesInCycle: 0,
@@ -243,6 +246,8 @@ export const useSessionStore = create<SessionState & SessionActions>()(
         set((s) => ({ completedFocusesInCycle: s.completedFocusesInCycle + 1 })),
 
       resetCycle: () => set({ completedFocusesInCycle: 0 }),
+
+      markSessionRecovered: () => set({ recoveredInSession: true }),
 
       clearSnapshot: () => set({ activeSessionSnapshot: null }),
 

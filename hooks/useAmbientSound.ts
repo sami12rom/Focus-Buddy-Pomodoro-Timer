@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Audio } from 'expo-av';
 import { useSettingsStore } from '../store/settingsStore';
 import { AMBIENT_SOUNDS, BREAK_SOUNDS } from '../constants/sounds';
+import { AmbientSoundManager } from './ambientSoundManager';
 
 interface Props {
   isRunning: boolean;
@@ -13,27 +14,33 @@ interface PlaybackSound {
   uri: number;
 }
 
-const FADE_IN_MS  = 1200;
-const FADE_OUT_MS = 800;
+const FADE_IN_MS = 1200;
 
 export function useAmbientSound({ isRunning, isBreak }: Props) {
-  const ambientSounds      = useSettingsStore((s) => s.ambientSounds);
-  const ambientVolume      = useSettingsStore((s) => s.ambientVolume);
-  const playDuringBreak    = useSettingsStore((s) => s.playAmbientDuringBreak);
-  const breakSound         = useSettingsStore((s) => s.breakSound);
+  const ambientSounds   = useSettingsStore((s) => s.ambientSounds);
+  const ambientVolume   = useSettingsStore((s) => s.ambientVolume);
+  const playDuringBreak = useSettingsStore((s) => s.playAmbientDuringBreak);
+  const breakSound      = useSettingsStore((s) => s.breakSound);
 
-  const soundRefs     = useRef<Record<string, Audio.Sound>>({});
-  const fadeTimerRefs = useRef<Record<string, ReturnType<typeof setInterval> | null>>({});
-  const updateRunRef  = useRef(0);
+  const updateRunRef   = useRef(0);
   const playbackRunRef = useRef(0);
-  // Keep a ref so fade callbacks always use the latest value without stale closures
-  const volumeRef     = useRef(ambientVolume);
-  volumeRef.current   = ambientVolume;
+  const volumeRef      = useRef(ambientVolume);
+  volumeRef.current    = ambientVolume;
+
   const selectedLayerCount = isBreak && breakSound !== 'none'
     ? 1
     : Math.max(1, ambientSounds.filter((id) => id !== 'none').length);
   const selectedCountRef = useRef(selectedLayerCount);
   selectedCountRef.current = selectedLayerCount;
+
+  const managerRef = useRef<AmbientSoundManager<Audio.Sound> | null>(null);
+  if (!managerRef.current) {
+    managerRef.current = new AmbientSoundManager<Audio.Sound>(
+      () => volumeRef.current,
+      () => selectedCountRef.current,
+    );
+  }
+  const manager = managerRef.current as AmbientSoundManager<Audio.Sound>;
 
   function getSelectedSounds(): PlaybackSound[] {
     if (isBreak && breakSound !== 'none') {
@@ -52,69 +59,15 @@ export function useAmbientSound({ isRunning, isBreak }: Props) {
       .filter((sound): sound is PlaybackSound => sound !== null);
   }
 
-  function targetVolume(ratio: number) {
-    const mixGain = 1 / Math.sqrt(selectedCountRef.current);
-    return Math.max(0, Math.min(1, ratio * volumeRef.current * mixGain));
-  }
-
-  function stopFade(id: string) {
-    if (fadeTimerRefs.current[id]) {
-      clearInterval(fadeTimerRefs.current[id]!);
-      fadeTimerRefs.current[id] = null;
-    }
-  }
-
-  // Ramp sound volume from 0→target or target→0 over durationMs
-  function rampTo(id: string, sound: Audio.Sound, toRatio: number, durationMs: number): Promise<void> {
-    stopFade(id);
-    const fromRatio = toRatio > 0 ? 0 : 1;
-    const steps = Math.max(1, Math.round(durationMs / 50));
-    let step = 0;
-    return new Promise((resolve) => {
-      fadeTimerRefs.current[id] = setInterval(async () => {
-        step++;
-        const progress = Math.min(step / steps, 1);
-        const ratio = fromRatio + (toRatio - fromRatio) * progress;
-        try {
-          await sound.setVolumeAsync(targetVolume(ratio));
-        } catch (_e) {}
-        if (step >= steps) {
-          stopFade(id);
-          resolve();
-        }
-      }, 50);
-    });
-  }
-
-  function stopAllFades() {
-    Object.keys(fadeTimerRefs.current).forEach(stopFade);
-  }
-
-  async function unloadSound(id: string, fadeOut = false) {
-    const sound = soundRefs.current[id];
-    if (!sound) return;
-    try {
-      if (fadeOut) {
-        await rampTo(id, sound, 0, FADE_OUT_MS);
-      } else {
-        stopFade(id);
-      }
-      await sound.stopAsync();
-      await sound.unloadAsync();
-    } catch (_e) {}
-    delete soundRefs.current[id];
-    delete fadeTimerRefs.current[id];
-  }
-
   async function updateLoadedVolumes(skipIds: string[] = []) {
     await Promise.all(
-      Object.entries(soundRefs.current).map(async ([id, sound]) => {
+      Object.entries(manager.soundRefs).map(async ([id, sound]) => {
         if (skipIds.includes(id)) return;
-        stopFade(id);
+        manager.stopFade(id);
         try {
           const status = await sound.getStatusAsync();
           if (status.isLoaded && status.isPlaying) {
-            await sound.setVolumeAsync(targetVolume(1));
+            await sound.setVolumeAsync(manager.targetVolume(1));
           }
         } catch (_e) {}
       })
@@ -130,32 +83,39 @@ export function useAmbientSound({ isRunning, isBreak }: Props) {
     }).catch(() => {});
 
     return () => {
-      stopAllFades();
-      Object.values(soundRefs.current).forEach((sound) => {
-        sound.unloadAsync().catch(() => {});
-      });
-      soundRefs.current = {};
-      fadeTimerRefs.current = {};
+      manager.dispose();
     };
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load / unload when selected sounds change
   useEffect(() => {
     async function updateSounds() {
       const runId = ++updateRunRef.current;
       const selected = getSelectedSounds();
-      const selectedSet = new Set<string>(selected.map((sound) => sound.id));
+      const selectedSet = new Set<string>(selected.map((s) => s.id));
       const fadingInIds: string[] = [];
 
-      await Promise.all(
-        Object.keys(soundRefs.current)
-          .filter((id) => !selectedSet.has(id))
-          .map((id) => unloadSound(id, true))
-      );
+      // Snapshot and IMMEDIATELY remove sounds that are no longer selected.
+      // Removing before any async work prevents:
+      //   (a) double-unload from concurrent runs operating on the same object
+      //   (b) a re-add within the fade window being silently skipped because
+      //       the sound was still in refs
+      const toRemove: Array<[string, Audio.Sound]> = [];
+      for (const [id, sound] of Object.entries(manager.soundRefs)) {
+        if (!selectedSet.has(id)) {
+          delete manager.soundRefs[id];
+          toRemove.push([id, sound]);
+        }
+      }
 
+      await Promise.all(toRemove.map(([id, sound]) => manager.drainSound(id, sound, true)));
+
+      if (runId !== updateRunRef.current) return;
+
+      // Load newly added sounds
       await Promise.all(
         selected.map(async ({ id, uri }) => {
-          if (soundRefs.current[id]) return;
+          if (manager.soundRefs[id]) return;
           try {
             const { sound } = await Audio.Sound.createAsync(
               uri,
@@ -165,13 +125,12 @@ export function useAmbientSound({ isRunning, isBreak }: Props) {
               await sound.unloadAsync().catch(() => {});
               return;
             }
-            soundRefs.current[id] = sound;
+            manager.soundRefs[id] = sound;
 
-            // Auto-play if session already running when sound is changed
             if (isRunning) {
               await sound.playAsync();
               fadingInIds.push(id);
-              rampTo(id, sound, 1, FADE_IN_MS);
+              manager.rampTo(id, sound, 1, FADE_IN_MS);
             }
           } catch (_e) {}
         })
@@ -187,10 +146,10 @@ export function useAmbientSound({ isRunning, isBreak }: Props) {
   useEffect(() => {
     async function sync() {
       const runId = ++playbackRunRef.current;
-      const selectedSet = new Set<string>(getSelectedSounds().map((sound) => sound.id));
+      const selectedSet = new Set<string>(getSelectedSounds().map((s) => s.id));
 
       await Promise.all(
-        Object.entries(soundRefs.current).map(async ([id, sound]) => {
+        Object.entries(manager.soundRefs).map(async ([id, sound]) => {
           let status;
           try { status = await sound.getStatusAsync(); } catch { return; }
           if (!status.isLoaded) return;
@@ -201,14 +160,14 @@ export function useAmbientSound({ isRunning, isBreak }: Props) {
             if (runId !== playbackRunRef.current) return;
             await sound.playAsync().catch(() => {});
             if (runId !== playbackRunRef.current) return;
-            rampTo(id, sound, 1, FADE_IN_MS);
+            manager.rampTo(id, sound, 1, FADE_IN_MS);
           } else if (!shouldPlay && status.isPlaying) {
-            await rampTo(id, sound, 0, FADE_OUT_MS);
+            await manager.rampTo(id, sound, 0, 800);
             if (runId !== playbackRunRef.current) return;
             await sound.pauseAsync().catch(() => {});
           } else if (shouldPlay && status.isPlaying) {
-            stopFade(id);
-            await sound.setVolumeAsync(targetVolume(1)).catch(() => {});
+            manager.stopFade(id);
+            await sound.setVolumeAsync(manager.targetVolume(1)).catch(() => {});
           }
         })
       );

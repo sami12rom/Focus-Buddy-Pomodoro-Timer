@@ -85,6 +85,7 @@ export default function TimerScreen() {
     setFocusMinutes, setBreakMinutes, setCurrentTask, setCurrentTag, extendFocusByMinutes,
     isCurrentBreakLong,
     incrementCycle, resetCycle, clearSnapshot,
+    recoveredInSession, markSessionRecovered,
   } = useSessionStore();
 
   const { evolutionStage, applyFocusReward, applyBreakInteraction } = useCompanionStore();
@@ -101,6 +102,8 @@ export default function TimerScreen() {
   const [showFocusExtensionPrompt, setShowFocusExtensionPrompt] = useState(false);
   const [showSoundPickerModal, setShowSoundPickerModal] = useState(false);
   const [breakPetAnimationTrigger, setBreakPetAnimationTrigger] = useState(0);
+  const [showRecoveredFeedback, setShowRecoveredFeedback] = useState(false);
+  const recoveredFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const rewardDismissedRef = useRef(false);
   const extensionPromptShownRef = useRef(false);
   const lastEntryIdRef = useRef<string | null>(null);
@@ -187,6 +190,7 @@ export default function TimerScreen() {
       tag: currentTag,
       durationMinutes: completedDurationMinutes,
       completedAt: new Date().toISOString(),
+      recovered: recoveredInSession || undefined,
     });
     clearSnapshot();
 
@@ -222,7 +226,7 @@ export default function TimerScreen() {
     setShowReward(true);
   }, [applyFocusReward, recordCompletedSession, addEntry, markAchievementsNotified,
       soundEnabled, hapticsEnabled, selectedFocusMinutes, taskInput, currentTag,
-      incrementCycle, clearSnapshot]);
+      incrementCycle, clearSnapshot, recoveredInSession]);
 
   const focusTimer = useTimer('focus', handleFocusComplete);
 
@@ -345,6 +349,14 @@ export default function TimerScreen() {
       task: taskInput,
       sessionType: 'focus',
     });
+  }
+
+  function handleGentleRestart() {
+    markSessionRecovered();
+    if (recoveredFeedbackTimerRef.current) clearTimeout(recoveredFeedbackTimerRef.current);
+    setShowRecoveredFeedback(true);
+    recoveredFeedbackTimerRef.current = setTimeout(() => setShowRecoveredFeedback(false), 2000);
+    if (status === 'paused') handleResumeFocus();
   }
 
   function handleCancelFocus() {
@@ -671,6 +683,20 @@ export default function TimerScreen() {
   // ─────────────────────────────────────────────────────────────────────────
   // Render: Focus running phase
   // ─────────────────────────────────────────────────────────────────────────
+  const gentleRestartBtn = (
+    <TouchableOpacity
+      style={[styles.gentleRestartBtn, { borderColor: showRecoveredFeedback ? t.focusAccent : t.border }]}
+      onPress={handleGentleRestart}
+      activeOpacity={0.7}
+      accessibilityLabel="I'm back — mark session as recovered"
+      accessibilityRole="button"
+    >
+      <Text style={[styles.gentleRestartText, { color: showRecoveredFeedback ? t.focusAccent : t.textMuted }]}>
+        {showRecoveredFeedback ? '✓ Back on track' : "↩ I drifted — I'm back"}
+      </Text>
+    </TouchableOpacity>
+  );
+
   const soundPicker = (
     <View style={styles.soundPickerContainer}>
       <Text style={[styles.soundPickerLabel, { color: t.textMuted }]}>Sounds</Text>
@@ -819,6 +845,7 @@ export default function TimerScreen() {
                   <Text style={[styles.controlBtnText, { color: t.textSecondary }]}>Cancel</Text>
                 </TouchableOpacity>
               </View>
+              {gentleRestartBtn}
               {landscapeSoundControl}
             </View>
           </>
@@ -840,6 +867,7 @@ export default function TimerScreen() {
                 <Text style={[styles.controlBtnText, { color: t.textSecondary }]}>Cancel</Text>
               </TouchableOpacity>
             </View>
+            {gentleRestartBtn}
             {!showFocusExtensionPrompt && soundPicker}
           </>
         )}
@@ -1384,6 +1412,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     width: '100%',
+  },
+  gentleRestartBtn: {
+    alignSelf: 'center',
+    marginTop: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  gentleRestartText: {
+    fontSize: 13,
+    fontWeight: '500',
   },
   controlBtn: {
     flex: 1,
