@@ -89,7 +89,62 @@ case "$CONFIRM" in
   [nN]) echo "Aborted."; exit 0 ;;
 esac
 
-# ── Apply changes ─────────────────────────────────────────────────────────────
+# ── Generate release notes from commits since last tag ────────────────────────
+NOTES_FILE="$ROOT/release-notes/en-US.txt"
+CHANGELOG="$ROOT/CHANGELOG.md"
+LAST_TAG=$(git -C "$ROOT" describe --tags --abbrev=0 2>/dev/null || echo "")
+
+if [[ -n "$LAST_TAG" ]]; then
+  ALL_COMMITS=$(git -C "$ROOT" log "$LAST_TAG"..HEAD --oneline --no-merges 2>/dev/null || true)
+
+  FEATS=$(echo "$ALL_COMMITS" | grep ' feat: ' | sed 's/^[a-f0-9]* feat: /• /' || true)
+  FIXES=$(echo "$ALL_COMMITS" | grep ' fix: '  | sed 's/^[a-f0-9]* fix: /• /'  || true)
+
+  # Commits that had no feat:/fix: prefix — show so nothing is silently missed
+  UNCAPTURED=$(echo "$ALL_COMMITS" \
+    | grep -v ' feat: ' | grep -v ' fix: ' | grep -v ' chore: ' \
+    | sed 's/^[a-f0-9]* //' || true)
+
+  DRAFT=""
+  [[ -n "$FEATS" ]] && DRAFT="${DRAFT}New:\n${FEATS}\n\n"
+  [[ -n "$FIXES" ]] && DRAFT="${DRAFT}Fixes:\n${FIXES}\n"
+  [[ -z "$DRAFT"  ]] && DRAFT="Bug fixes and improvements.\n"
+
+  printf "$DRAFT" > "$NOTES_FILE"
+
+  echo ""
+  echo "── Release notes for v$NEW_VERSION (release-notes/en-US.txt) ──────────────"
+  cat "$NOTES_FILE"
+  echo "────────────────────────────────────────────────────────────────────────────"
+
+  if [[ -n "$UNCAPTURED" ]]; then
+    echo ""
+    echo "⚠️  These commits were NOT captured (no feat:/fix: prefix):"
+    echo "$UNCAPTURED" | sed 's/^/  /'
+    echo "  Add them manually to the release notes if they matter to users."
+  fi
+
+  echo ""
+  read -rp "Edit release notes before continuing? [y/N]: " EDIT_NOTES
+  if [[ "$EDIT_NOTES" =~ ^[yY]$ ]]; then
+    "${EDITOR:-nano}" "$NOTES_FILE"
+  fi
+
+  # Append this version's notes to CHANGELOG.md for permanent history
+  TODAY=$(date '+%Y-%m-%d')
+  ENTRY="## v$NEW_VERSION ($TODAY)\n$(cat "$NOTES_FILE")\n"
+  if [[ -f "$CHANGELOG" ]]; then
+    # Insert after the first line (the # Changelog heading)
+    HEADING=$(head -1 "$CHANGELOG")
+    REST=$(tail -n +2 "$CHANGELOG")
+    printf "%s\n\n%s\n%s" "$HEADING" "$ENTRY" "$REST" > "$CHANGELOG"
+  else
+    printf "# Changelog\n\n%s" "$ENTRY" > "$CHANGELOG"
+  fi
+  echo "✓ CHANGELOG.md updated"
+fi
+
+# ── Apply version changes ──────────────────────────────────────────────────────
 sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$NEW_VERSION\"/" "$APP_JSON"
 sed -i '' "s/\"versionCode\": [0-9]*/\"versionCode\": $VERSION_CODE/" "$APP_JSON"
 sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$NEW_VERSION\"/" "$PKG_JSON"
@@ -98,10 +153,11 @@ echo ""
 echo "✓ app.json       expo.version        → $NEW_VERSION"
 echo "✓ app.json       android.versionCode → $VERSION_CODE"
 echo "✓ package.json   version             → $NEW_VERSION"
+echo "✓ release-notes/en-US.txt           → updated"
 echo ""
 echo "Run these commands to commit, tag, and push:"
 echo ""
-echo "  git add app.json package.json"
+echo "  git add app.json package.json release-notes/en-US.txt CHANGELOG.md"
 echo "  git commit -m \"chore: bump version to $NEW_VERSION\""
 echo "  git tag v$NEW_VERSION"
 echo "  git push origin main"
