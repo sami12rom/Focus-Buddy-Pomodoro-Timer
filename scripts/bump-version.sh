@@ -1,44 +1,76 @@
 #!/usr/bin/env bash
-# Usage: ./scripts/bump-version.sh 1.0.26
+# Usage: ./scripts/bump-version.sh [new-version]
 #
-# Updates the version in all three places that must stay in sync:
-#   app.json  → expo.version       (semver string)
-#   app.json  → expo.android.versionCode  (patch number as integer)
-#   package.json → version         (semver string)
+# With no argument: reads the current version from app.json, suggests the next
+# patch bump, and asks for confirmation before changing anything.
 #
-# Then prints the git commands to commit, tag, and push.
+# With an argument: uses that version directly (skips the prompt).
+#
+# Updates three places that must always stay in sync:
+#   app.json  → expo.version            (semver string)
+#   app.json  → expo.android.versionCode (patch number as integer)
+#   package.json → version              (semver string)
+#
+# Then prints the exact git commands to commit, tag, and push.
 
 set -e
-
-NEW_VERSION="$1"
-
-if [[ -z "$NEW_VERSION" ]]; then
-  echo "Usage: $0 <new-version>  (e.g. $0 1.0.26)"
-  exit 1
-fi
-
-# Validate semver format x.y.z
-if ! [[ "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "Error: version must be in x.y.z format (e.g. 1.0.26)"
-  exit 1
-fi
-
-# Extract the patch number for versionCode
-VERSION_CODE="${NEW_VERSION##*.}"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_JSON="$ROOT/app.json"
 PKG_JSON="$ROOT/package.json"
 
-# Update app.json — expo.version
+# ── Read current version from app.json (source of truth) ─────────────────────
+CURRENT=$(grep '"version"' "$APP_JSON" | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
+
+IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+SUGGESTED="$MAJOR.$MINOR.$((PATCH + 1))"
+
+# ── Determine new version ─────────────────────────────────────────────────────
+if [[ -n "$1" ]]; then
+  NEW_VERSION="$1"
+else
+  echo "Current version : $CURRENT"
+  echo "Suggested next  : $SUGGESTED"
+  echo ""
+
+  # Show commits since last tag so the user knows what's going in
+  LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+  if [[ -n "$LAST_TAG" ]]; then
+    echo "Commits since $LAST_TAG:"
+    git log "$LAST_TAG"..HEAD --oneline 2>/dev/null | sed 's/^/  /'
+    echo ""
+  fi
+
+  read -rp "New version [$SUGGESTED]: " INPUT
+  NEW_VERSION="${INPUT:-$SUGGESTED}"
+fi
+
+# ── Validate semver ───────────────────────────────────────────────────────────
+if ! [[ "$NEW_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "Error: version must be in x.y.z format (got: $NEW_VERSION)"
+  exit 1
+fi
+
+VERSION_CODE="${NEW_VERSION##*.}"
+
+# ── Confirm before making changes ─────────────────────────────────────────────
+echo ""
+echo "Will update:"
+echo "  app.json       expo.version        $CURRENT → $NEW_VERSION"
+echo "  app.json       android.versionCode $(echo "$CURRENT" | awk -F. '{print $3}') → $VERSION_CODE"
+echo "  package.json   version             $CURRENT → $NEW_VERSION"
+echo ""
+read -rp "Proceed? [Y/n]: " CONFIRM
+case "$CONFIRM" in
+  [nN]) echo "Aborted."; exit 0 ;;
+esac
+
+# ── Apply changes ─────────────────────────────────────────────────────────────
 sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$NEW_VERSION\"/" "$APP_JSON"
-
-# Update app.json — expo.android.versionCode
 sed -i '' "s/\"versionCode\": [0-9]*/\"versionCode\": $VERSION_CODE/" "$APP_JSON"
-
-# Update package.json — version
 sed -i '' "s/\"version\": \"[^\"]*\"/\"version\": \"$NEW_VERSION\"/" "$PKG_JSON"
 
+echo ""
 echo "✓ app.json       expo.version        → $NEW_VERSION"
 echo "✓ app.json       android.versionCode → $VERSION_CODE"
 echo "✓ package.json   version             → $NEW_VERSION"
@@ -48,4 +80,7 @@ echo ""
 echo "  git add app.json package.json"
 echo "  git commit -m \"chore: bump version to $NEW_VERSION\""
 echo "  git tag v$NEW_VERSION"
-echo "  git push origin main --tags"
+echo "  git push origin main"
+echo "  git push origin v$NEW_VERSION"
+echo ""
+echo "(Push the tag explicitly — not --tags — to avoid triggering CI for unrelated local tags.)"

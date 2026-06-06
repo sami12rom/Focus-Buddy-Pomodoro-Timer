@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+# Pre-push hook: warns if new commits exist since the last version tag.
+#
+# In an interactive terminal: asks whether to proceed.
+# In a non-interactive context (VS Code, CI, etc.): prints a warning and allows
+# the push — never blocks automated tooling.
+#
+# Install once with: git config core.hooksPath .githooks
+
+ROOT="$(git rev-parse --show-toplevel)"
+APP_JSON="$ROOT/app.json"
+
+CURRENT=$(grep '"version"' "$APP_JSON" | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
+TAG="v$CURRENT"
+
+warn_only() {
+  echo "$1"
+}
+
+ask_or_warn() {
+  local MESSAGE="$1"
+  # -t 1 is true when stdout is a real terminal (not VS Code / CI pipe)
+  if [ -t 1 ]; then
+    echo ""
+    echo "$MESSAGE"
+    echo ""
+    read -rp "Push anyway? [y/N]: " ANSWER
+    case "$ANSWER" in
+      [yY]) exit 0 ;;
+      *) echo "Push cancelled."; exit 1 ;;
+    esac
+  else
+    # Non-interactive — warn but never block
+    echo "⚠️  $MESSAGE"
+    exit 0
+  fi
+}
+
+# Tag doesn't exist yet
+if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+  ask_or_warn "Version $CURRENT in app.json has no git tag yet. Run ./scripts/bump-version.sh to bump and tag before pushing."
+  exit 0
+fi
+
+# Tag exists but doesn't point to HEAD
+TAG_COMMIT=$(git rev-parse "$TAG")
+HEAD_COMMIT=$(git rev-parse HEAD)
+
+if [[ "$TAG_COMMIT" != "$HEAD_COMMIT" ]]; then
+  ask_or_warn "New commits exist since tag $TAG. Consider running ./scripts/bump-version.sh before pushing."
+  exit 0
+fi
+
+exit 0
