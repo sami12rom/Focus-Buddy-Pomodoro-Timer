@@ -19,6 +19,30 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP_JSON="$ROOT/app.json"
 PKG_JSON="$ROOT/package.json"
 
+# ── Check for uncommitted code changes ────────────────────────────────────────
+# The bump script should only commit app.json and package.json.
+# If other tracked files have changes, the user should commit them first so
+# the git history has a descriptive commit for the feature and a separate one
+# for the version bump.
+DIRTY_FILES=$(git -C "$ROOT" status --porcelain | grep -v '^??' | grep -v 'app\.json' | grep -v 'package\.json' | grep -v '^$' || true)
+if [[ -n "$DIRTY_FILES" ]]; then
+  echo "⚠️  You have uncommitted changes to files other than app.json / package.json:"
+  echo ""
+  echo "$DIRTY_FILES" | sed 's/^/  /'
+  echo ""
+  echo "Best practice: commit your code changes first with a descriptive message,"
+  echo "then re-run this script. That keeps git history readable:"
+  echo "  - one commit: 'fix: what changed and why'"
+  echo "  - one commit: 'chore: bump version to X.Y.Z'"
+  echo ""
+  read -rp "Continue anyway (not recommended)? [y/N]: " CONT
+  case "$CONT" in
+    [yY]) ;;
+    *) echo "Aborted. Commit your changes first."; exit 0 ;;
+  esac
+  echo ""
+fi
+
 # ── Read current version from app.json (source of truth) ─────────────────────
 CURRENT=$(grep '"version"' "$APP_JSON" | head -1 | sed 's/.*"version": "\([^"]*\)".*/\1/')
 

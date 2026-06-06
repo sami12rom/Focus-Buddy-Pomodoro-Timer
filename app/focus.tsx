@@ -26,6 +26,7 @@ import { useCompanionStore, FocusRewardResult } from '../store/companionStore';
 import { useStatsStore } from '../store/statsStore';
 import { useSessionHistoryStore } from '../store/sessionHistoryStore';
 import { useSettingsStore } from '../store/settingsStore';
+import { useParkingLotStore } from '../store/parkingLotStore';
 import { useTimer } from '../hooks/useTimer';
 import { useAmbientSound } from '../hooks/useAmbientSound';
 import { useTheme } from '../hooks/useTheme';
@@ -41,6 +42,7 @@ import CircularTimer from '../components/CircularTimer';
 import RewardModal from '../components/RewardModal';
 import BreakEndModal from '../components/BreakEndModal';
 import BreathingAnimation from '../components/BreathingAnimation';
+import ParkingLotModal from '../components/ParkingLotModal';
 import {
   scheduleSessionEndNotification,
   cancelScheduledNotification,
@@ -92,6 +94,7 @@ export default function TimerScreen() {
   const { todaySessions, recordCompletedSession, recordLongBreakCompleted, markAchievementsNotified } = useStatsStore();
   const { addEntry, updateEntryOutcome } = useSessionHistoryStore();
   const { soundEnabled, hapticsEnabled, keepAwakeEnabled, autoStartBreak, ambientSounds, toggleAmbientSound } = useSettingsStore();
+  const parkingLotItemCount = useParkingLotStore((state) => state.items.length);
 
   const [taskInput, setTaskInput] = useState('');
   const [rewardResult, setRewardResult] = useState<FocusRewardResult | null>(null);
@@ -101,6 +104,7 @@ export default function TimerScreen() {
   const [autoStartCountdown, setAutoStartCountdown] = useState<number | undefined>(undefined);
   const [showFocusExtensionPrompt, setShowFocusExtensionPrompt] = useState(false);
   const [showSoundPickerModal, setShowSoundPickerModal] = useState(false);
+  const [showParkingLot, setShowParkingLot] = useState(false);
   const [breakPetAnimationTrigger, setBreakPetAnimationTrigger] = useState(0);
   const [showRecoveredFeedback, setShowRecoveredFeedback] = useState(false);
   const recoveredFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -162,6 +166,7 @@ export default function TimerScreen() {
   const handleFocusComplete = useCallback(() => {
     setShowFocusExtensionPrompt(false);
     setShowSoundPickerModal(false);
+    setShowParkingLot(false);
     extensionPromptShownRef.current = false;
     deactivateKeepAwake();
     cancelScheduledNotification();
@@ -242,6 +247,7 @@ export default function TimerScreen() {
 
   // ── Break timer ───────────────────────────────────────────────────────────
   const handleBreakComplete = useCallback(() => {
+    setShowParkingLot(false);
     deactivateKeepAwake();
     cancelScheduledNotification();
     void stopTimerNotification();
@@ -364,6 +370,7 @@ export default function TimerScreen() {
     cancelScheduledNotification();
     setShowFocusExtensionPrompt(false);
     setShowSoundPickerModal(false);
+    setShowParkingLot(false);
     extensionPromptShownRef.current = false;
     reset();
     clearSnapshot();
@@ -459,6 +466,7 @@ export default function TimerScreen() {
   }
 
   function handleSkipBreak() {
+    setShowParkingLot(false);
     deactivateKeepAwake();
     cancelScheduledNotification();
     if (isCurrentBreakLong) resetCycle();
@@ -697,6 +705,33 @@ export default function TimerScreen() {
     </TouchableOpacity>
   );
 
+  const parkingLotSessionAccent = isBreakRunning
+    ? breakSessionTheme.accent
+    : focusSessionTheme.accent;
+  const parkingLotBtn = (
+    <TouchableOpacity
+      style={[styles.parkingLotBtn, { borderColor: t.border }]}
+      onPress={() => setShowParkingLot(true)}
+      activeOpacity={0.7}
+      accessibilityLabel={`Parking lot. ${parkingLotItemCount} item${parkingLotItemCount === 1 ? '' : 's'}`}
+      accessibilityRole="button"
+    >
+      <Text style={[styles.parkingLotText, { color: t.textMuted }]}>
+        {'📝 Parking lot'}
+        {parkingLotItemCount > 0 && (
+          <Text style={{ color: parkingLotSessionAccent }}>{` · ${parkingLotItemCount}`}</Text>
+        )}
+      </Text>
+    </TouchableOpacity>
+  );
+  const parkingLotModal = (
+    <ParkingLotModal
+      visible={showParkingLot}
+      onClose={() => setShowParkingLot(false)}
+      sessionAccent={parkingLotSessionAccent}
+    />
+  );
+
   const soundPicker = (
     <View style={styles.soundPickerContainer}>
       <Text style={[styles.soundPickerLabel, { color: t.textMuted }]}>Sounds</Text>
@@ -846,6 +881,7 @@ export default function TimerScreen() {
                 </TouchableOpacity>
               </View>
               {gentleRestartBtn}
+              {parkingLotBtn}
               {landscapeSoundControl}
             </View>
           </>
@@ -868,6 +904,7 @@ export default function TimerScreen() {
               </TouchableOpacity>
             </View>
             {gentleRestartBtn}
+            {parkingLotBtn}
             {!showFocusExtensionPrompt && soundPicker}
           </>
         )}
@@ -889,6 +926,7 @@ export default function TimerScreen() {
           autoStartCountdown={autoStartBreak ? autoStartCountdown : undefined}
         />
         {soundPickerModal}
+        {parkingLotModal}
       </Animated.ScrollView>
     );
   }
@@ -959,6 +997,7 @@ export default function TimerScreen() {
             {breakTimer.isPaused && <Text style={[styles.pausedText, { color: t.xpGold }]}>Paused</Text>}
             {petBtn}
             {breakControls}
+            {parkingLotBtn}
           </View>
         </>
       ) : (
@@ -971,10 +1010,12 @@ export default function TimerScreen() {
           {breakTimer.isPaused && <Text style={[styles.pausedText, { color: t.xpGold }]}>Paused</Text>}
           {petBtn}
           {breakControls}
+          {parkingLotBtn}
         </>
       )}
 
       <BreakEndModal visible={showBreakEnd} wasSkipped={breakWasSkipped} onStartNextFocus={handleBreakEndContinue} onFinishForNow={handleBreakEndFinish} />
+      {parkingLotModal}
     </Animated.ScrollView>
   );
 }
@@ -1422,6 +1463,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   gentleRestartText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  parkingLotBtn: {
+    alignSelf: 'center',
+    marginTop: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  parkingLotText: {
     fontSize: 13,
     fontWeight: '500',
   },

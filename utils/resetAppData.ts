@@ -5,6 +5,7 @@ import { useSessionHistoryStore } from '../store/sessionHistoryStore';
 import { useSettingsStore } from '../store/settingsStore';
 import { useThemeStore } from '../store/themeStore';
 import { useGoalStore } from '../store/goalStore';
+import { useParkingLotStore } from '../store/parkingLotStore';
 
 export function resetAllAppData(): void {
   useCompanionStore.getState().resetToDefaults();
@@ -14,4 +15,5 @@ export function resetAllAppData(): void {
   useSettingsStore.getState().resetToDefaults();
   useThemeStore.getState().resetToDefaults();
   useGoalStore.getState().resetToDefaults();
+  useParkingLotStore.getState().resetToDefaults();
 }
