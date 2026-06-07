@@ -15,6 +15,7 @@ try {
 
 const CHANNEL_ID = 'focus_timer';
 const NOTIF_ID = 'focus_timer_live';
+let resolveForegroundService: (() => void) | null = null;
 
 export type TimerNotifParams = {
   status: 'running' | 'paused';
@@ -39,19 +40,6 @@ function toData(params: TimerNotifParams): NotifData {
     pausedAt: String(params.pausedAt ?? 0),
     task: params.task,
     sessionType: params.sessionType,
-  };
-}
-
-function fromData(data: NotifData): TimerNotifParams & { active: boolean } {
-  return {
-    active: data.active === '1',
-    status: data.status as 'running' | 'paused',
-    startTime: Number(data.startTime),
-    activeDurationMs: Number(data.activeDurationMs),
-    totalPausedMs: Number(data.totalPausedMs),
-    pausedAt: Number(data.pausedAt) || null,
-    task: data.task ?? '',
-    sessionType: data.sessionType as 'focus' | 'break',
   };
 }
 
@@ -81,12 +69,11 @@ async function setupChannel() {
 
 function buildDisplayNotification(params: TimerNotifParams, remaining: number) {
   const isBreak = params.sessionType === 'break';
+  const isPaused = params.status === 'paused';
   const body =
-    params.status === 'paused'
+    isPaused
       ? `Paused · ${formatMs(remaining)} left`
-      : params.task
-        ? `${params.task} · ${formatMs(remaining)} left`
-        : `${formatMs(remaining)} remaining`;
+      : params.task || (isBreak ? 'Break in progress' : 'Focus in progress');
 
   return {
     id: NOTIF_ID,
@@ -97,13 +84,17 @@ function buildDisplayNotification(params: TimerNotifParams, remaining: number) {
       channelId: CHANNEL_ID,
       ongoing: true,
       asForegroundService: true,
+      onlyAlertOnce: true,
       category: AndroidCategory.PROGRESS,
       color: '#a78bfa',
-      progress: {
-        max: Math.round(params.activeDurationMs / 1000),
-        current: Math.round(Math.max(0, params.activeDurationMs - remaining) / 1000),
-        indeterminate: false,
-      },
+      showChronometer: !isPaused,
+      ...(isPaused
+        ? {}
+        : {
+            chronometerDirection: 'down' as const,
+            timestamp: Date.now() + remaining,
+            timeoutAfter: remaining,
+          }),
     },
   };
 }
@@ -112,48 +103,23 @@ function buildDisplayNotification(params: TimerNotifParams, remaining: number) {
 export function registerTimerForegroundService() {
   if (Platform.OS !== 'android' || !notifee) return;
 
-  notifee.registerForegroundService(() =>
-    new Promise(async (resolve) => {
-      const tick = async () => {
-        const displayed = await notifee.getDisplayedNotifications();
-        const current = displayed.find((n) => n.notification.id === NOTIF_ID);
-
-        if (!current) { resolve(); return; }
-
-        const raw = current.notification.data as NotifData | undefined;
-        if (!raw || raw.active !== '1') { resolve(); return; }
-
-        const params = fromData(raw);
-
-        if (params.status === 'paused') {
-          // Check frequently so resume is picked up quickly
-          setTimeout(tick, 500);
-          return;
-        }
-
-        const remaining = getRemainingMs(params);
-        if (remaining <= 0) {
-          // Timer expired — main thread handles session completion
-          resolve();
-          return;
-        }
-
-        await notifee.displayNotification(buildDisplayNotification(params, remaining));
-        setTimeout(tick, 1000);
-      };
-
-      setTimeout(tick, 1000);
-    })
+  notifee.registerForegroundService(
+    () =>
+      new Promise<void>((resolve) => {
+        resolveForegroundService?.();
+        resolveForegroundService = resolve;
+      }),
   );
 }
 
 export async function startTimerNotification(params: TimerNotifParams) {
   if (Platform.OS !== 'android' || !notifee) return;
   await setupChannel();
-  await notifee.displayNotification(buildDisplayNotification(params, params.activeDurationMs));
+  const remaining = getRemainingMs(params);
+  await notifee.displayNotification(buildDisplayNotification(params, remaining));
 }
 
-// Call on pause or resume — updates notification data so the service picks up the new state
+// Call on pause or resume to replace the native countdown with the current state.
 export async function updateTimerNotification(params: TimerNotifParams) {
   if (Platform.OS !== 'android' || !notifee) return;
   const remaining = getRemainingMs(params);
@@ -162,5 +128,11 @@ export async function updateTimerNotification(params: TimerNotifParams) {
 
 export async function stopTimerNotification() {
   if (Platform.OS !== 'android' || !notifee) return;
-  await notifee.cancelNotification(NOTIF_ID);
+  resolveForegroundService?.();
+  resolveForegroundService = null;
+  try {
+    await notifee.stopForegroundService();
+  } catch {
+    await notifee.cancelNotification(NOTIF_ID).catch(() => {});
+  }
 }

@@ -124,6 +124,24 @@ describe('SoundUpdateScheduler — debounce + stale-runId detection', () => {
     expect(onUpdate).not.toHaveBeenCalled();
   });
 
+  it('cancel() marks an in-flight update as stale', async () => {
+    let capturedIsCurrent: (() => boolean) | null = null;
+    const onUpdate = jest.fn().mockImplementation(
+      async (_runId: number, isCurrent: () => boolean) => {
+        capturedIsCurrent = isCurrent;
+      },
+    );
+    const scheduler = new SoundUpdateScheduler(200, onUpdate);
+
+    scheduler.schedule();
+    await jest.advanceTimersByTimeAsync(200);
+    expect(capturedIsCurrent!()).toBe(true);
+
+    scheduler.cancel();
+
+    expect(capturedIsCurrent!()).toBe(false);
+  });
+
   it('cancel() is a no-op when nothing is pending', () => {
     const onUpdate = jest.fn().mockResolvedValue(undefined);
     const scheduler = new SoundUpdateScheduler(200, onUpdate);

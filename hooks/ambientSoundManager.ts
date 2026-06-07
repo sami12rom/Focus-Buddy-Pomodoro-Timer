@@ -10,7 +10,7 @@ export interface SoundLike {
 
 export class AmbientSoundManager<T extends SoundLike = SoundLike> {
   readonly soundRefs: Record<string, T> = {};
-  private readonly fadeTimerRefs: Record<string, ReturnType<typeof setInterval> | null> = {};
+  private readonly fadeTimerRefs: Record<string, ReturnType<typeof setTimeout> | null> = {};
   // Stores the resolve() of any in-flight rampTo so stopFade can unblock it.
   private readonly fadeResolversRef: Record<string, (() => void) | null> = {};
 
@@ -27,11 +27,11 @@ export class AmbientSoundManager<T extends SoundLike = SoundLike> {
     return Math.max(0, Math.min(1, ratio * this.volumeGetter() * mixGain));
   }
 
-  // Clears the running interval AND resolves any pending rampTo promise.
+  // Clears the pending fade step and resolves any pending rampTo promise.
   // This ensures `await rampTo(...)` never hangs when interrupted externally.
   stopFade(id: string): void {
     if (this.fadeTimerRefs[id]) {
-      clearInterval(this.fadeTimerRefs[id]!);
+      clearTimeout(this.fadeTimerRefs[id]!);
       this.fadeTimerRefs[id] = null;
     }
     if (this.fadeResolversRef[id]) {
@@ -49,7 +49,8 @@ export class AmbientSoundManager<T extends SoundLike = SoundLike> {
     const startTime = Date.now();
     return new Promise((resolve) => {
       this.fadeResolversRef[id] = resolve; // stored so stopFade can call it
-      this.fadeTimerRefs[id] = setInterval(async () => {
+      const step = async () => {
+        this.fadeTimerRefs[id] = null;
         const progress = Math.min((Date.now() - startTime) / durationMs, 1);
         const ratio = fromRatio + (toRatio - fromRatio) * progress;
         try {
@@ -59,10 +60,18 @@ export class AmbientSoundManager<T extends SoundLike = SoundLike> {
           this.stopFade(id);
           return;
         }
+
+        // The fade may have been cancelled or replaced while the native write
+        // was in flight. Do not schedule another write for a stale fade.
+        if (this.fadeResolversRef[id] !== resolve) return;
+
         if (progress >= 1) {
           this.stopFade(id);
+        } else {
+          this.fadeTimerRefs[id] = setTimeout(step, 50);
         }
-      }, 50);
+      };
+      this.fadeTimerRefs[id] = setTimeout(step, 50);
     });
   }
 

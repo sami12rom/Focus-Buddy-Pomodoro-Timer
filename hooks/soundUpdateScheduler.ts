@@ -32,6 +32,7 @@ export class SoundUpdateScheduler {
 
   // Cancel any pending update (call from useEffect cleanup).
   cancel(): void {
+    this.runId += 1;
     if (this.timer !== null) {
       clearTimeout(this.timer);
       this.timer = null;

@@ -469,6 +469,7 @@ export default function TimerScreen() {
     setShowParkingLot(false);
     deactivateKeepAwake();
     cancelScheduledNotification();
+    void stopTimerNotification();
     if (isCurrentBreakLong) resetCycle();
     setBreakWasSkipped(true);
     setShowBreakEnd(true);
