@@ -27,10 +27,7 @@
     "production": {
       "android": {
         "track": "production",
-        "releaseStatus": "completed",
-        "releaseNotes": {
-          "en-US": "./release-notes/en-US.txt"
-        }
+        "releaseStatus": "completed"
       }
     }
   }
