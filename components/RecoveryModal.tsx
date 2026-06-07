@@ -65,6 +65,8 @@ export default function RecoveryModal({
                 style={[styles.btn, { backgroundColor: t.focusAccent }]}
                 onPress={onResume}
                 activeOpacity={0.85}
+                accessibilityLabel="Resume session"
+                accessibilityRole="button"
               >
                 <Text style={styles.btnText}>Resume</Text>
               </TouchableOpacity>
@@ -72,6 +74,8 @@ export default function RecoveryModal({
                 style={[styles.btn, styles.outlineBtn, { borderColor: t.border }]}
                 onPress={onDiscard}
                 activeOpacity={0.85}
+                accessibilityLabel="Discard session"
+                accessibilityRole="button"
               >
                 <Text style={[styles.btnText, { color: t.textSecondary }]}>Discard</Text>
               </TouchableOpacity>
@@ -84,6 +88,8 @@ export default function RecoveryModal({
                 style={[styles.btn, { backgroundColor: t.focusAccent }]}
                 onPress={onMarkCompleted}
                 activeOpacity={0.85}
+                accessibilityLabel="Mark session as completed"
+                accessibilityRole="button"
               >
                 <Text style={styles.btnText}>Mark completed</Text>
               </TouchableOpacity>
@@ -91,6 +97,8 @@ export default function RecoveryModal({
                 style={[styles.btn, styles.outlineBtn, { borderColor: t.border }]}
                 onPress={onDiscard}
                 activeOpacity={0.85}
+                accessibilityLabel="Discard session"
+                accessibilityRole="button"
               >
                 <Text style={[styles.btnText, { color: t.textSecondary }]}>Discard</Text>
               </TouchableOpacity>
@@ -103,6 +111,8 @@ export default function RecoveryModal({
                 style={[styles.btn, { backgroundColor: t.breakAccent }]}
                 onPress={onContinue}
                 activeOpacity={0.85}
+                accessibilityLabel="Start a new focus session"
+                accessibilityRole="button"
               >
                 <Text style={styles.btnText}>Continue</Text>
               </TouchableOpacity>
@@ -110,6 +120,8 @@ export default function RecoveryModal({
                 style={[styles.btn, styles.outlineBtn, { borderColor: t.border }]}
                 onPress={onFinishForNow}
                 activeOpacity={0.85}
+                accessibilityLabel="Finish for now and go home"
+                accessibilityRole="button"
               >
                 <Text style={[styles.btnText, { color: t.textSecondary }]}>Finish for now</Text>
               </TouchableOpacity>

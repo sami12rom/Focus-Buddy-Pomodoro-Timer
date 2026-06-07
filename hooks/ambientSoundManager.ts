@@ -13,6 +13,11 @@ export class AmbientSoundManager<T extends SoundLike = SoundLike> {
   private readonly fadeTimerRefs: Record<string, ReturnType<typeof setTimeout> | null> = {};
   // Stores the resolve() of any in-flight rampTo so stopFade can unblock it.
   private readonly fadeResolversRef: Record<string, (() => void) | null> = {};
+  // Tracks the most recent in-flight setVolumeAsync promise per sound so that
+  // drainSound can wait for it to settle before issuing stopAsync/unloadAsync.
+  // stopFade() resolves the outer rampTo promise immediately but cannot cancel
+  // a native bridge call already sent — this ref closes that gap.
+  private readonly inflightVolumeOpRef: Record<string, Promise<unknown>> = {};
 
   private readonly volumeGetter: () => number;
   private readonly layerCountGetter: () => number;
@@ -53,13 +58,17 @@ export class AmbientSoundManager<T extends SoundLike = SoundLike> {
         this.fadeTimerRefs[id] = null;
         const progress = Math.min((Date.now() - startTime) / durationMs, 1);
         const ratio = fromRatio + (toRatio - fromRatio) * progress;
+        const volOp = sound.setVolumeAsync(this.targetVolume(ratio));
+        this.inflightVolumeOpRef[id] = volOp;
         try {
-          await sound.setVolumeAsync(this.targetVolume(ratio));
+          await volOp;
         } catch (_e) {
           // Sound was already unloaded — stop cleanly.
+          if (this.inflightVolumeOpRef[id] === volOp) delete this.inflightVolumeOpRef[id];
           this.stopFade(id);
           return;
         }
+        if (this.inflightVolumeOpRef[id] === volOp) delete this.inflightVolumeOpRef[id];
 
         // The fade may have been cancelled or replaced while the native write
         // was in flight. Do not schedule another write for a stale fade.
@@ -80,6 +89,11 @@ export class AmbientSoundManager<T extends SoundLike = SoundLike> {
   // any concurrent run doesn't see the id as "already loaded" and skip reloading.
   async drainSound(id: string, sound: T, fadeOut: boolean): Promise<void> {
     this.stopFade(id);
+    // Wait for any setVolumeAsync that was already crossing the native bridge
+    // when stopFade() was called. stopFade() resolves the rampTo promise eagerly
+    // but cannot recall a bridge call already in-flight — proceeding to
+    // stopAsync/unloadAsync before it settles risks operating on an unloaded sound.
+    await (this.inflightVolumeOpRef[id] ?? Promise.resolve()).catch(() => {});
     try {
       if (fadeOut) {
         await this.rampTo(id, sound, 0, 800);

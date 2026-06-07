@@ -931,7 +931,7 @@ export default function TimerScreen() {
         )}
 
         {__DEV__ && (
-          <TouchableOpacity style={[styles.devBtn, { backgroundColor: t.surface, borderColor: t.devAccent }]} onPress={handleFocusComplete} activeOpacity={0.8}>
+          <TouchableOpacity style={[styles.devBtn, { backgroundColor: t.surface, borderColor: t.devAccent }]} onPress={handleFocusComplete} activeOpacity={0.8} accessibilityLabel="Simulate session complete" accessibilityRole="button">
             <Text style={[styles.devBtnText, { color: t.devAccent }]}>⚡ Simulate Complete</Text>
           </TouchableOpacity>
         )}

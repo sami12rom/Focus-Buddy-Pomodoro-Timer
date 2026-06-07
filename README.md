@@ -191,6 +191,8 @@ Prioritised by impact and implementation effort. Each phase builds on the previo
 | Stability | ✅ App freezes after returning from a locked screen mid-break | Done — audio fade ramps switched to wall-clock timestamps so accumulated callbacks complete in one tick on resume; timer interval restarted cleanly on AppState active |
 | Stability | ✅ App shows "Focus Buddy isn't responding" (ANR) when rapidly switching ambient sounds | Done — 200 ms debounce via `SoundUpdateScheduler` ensures only the final selection triggers `Audio.Sound.createAsync`; run-ID stale detection aborts in-flight loads when superseded |
 | Stability | ✅ ANR crash on any session longer than ~3 minutes (Android 14+) | Done — Notifee's bundled AAR declares `foregroundServiceType="shortService"`, which Android enforces a ~3 min time limit on. A config plugin now overrides this to `mediaPlayback` in the merged manifest via `tools:replace` |
+| Stability | ✅ `stopFade()` could overlap `unloadAsync` with an in-flight `setVolumeAsync` | Done — `inflightVolumeOpRef` tracks the most recent native volume write per sound; `drainSound` awaits it before issuing `stopAsync`/`unloadAsync`, serialising all native operations |
+| Accessibility | ✅ RecoveryModal buttons and dev Simulate Complete button lacked `accessibilityLabel`/`accessibilityRole` | Done — all six RecoveryModal buttons and the dev button now declare labels and `accessibilityRole="button"` |
 
 ---
 
