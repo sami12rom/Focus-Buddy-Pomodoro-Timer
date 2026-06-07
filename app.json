@@ -46,7 +46,8 @@
           "color": "#ffffff"
         }
       ],
-      "./plugins/removeRecordAudio"
+      "./plugins/removeRecordAudio",
+      "./plugins/withNotifeeMediaPlayback"
     ],
     "experiments": {
       "typedRoutes": true

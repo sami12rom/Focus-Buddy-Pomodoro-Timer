@@ -183,6 +183,17 @@ npm test
 
 Prioritised by impact and implementation effort. Each phase builds on the previous.
 
+### Field Test Fixes — 2026-06-07
+*Critical stability fixes from real-device ANR reports and app freeze incidents.*
+
+| Area | Issue / Request | Notes |
+|------|-----------------|-------|
+| Stability | ✅ App freezes after returning from a locked screen mid-break | Done — audio fade ramps switched to wall-clock timestamps so accumulated callbacks complete in one tick on resume; timer interval restarted cleanly on AppState active |
+| Stability | ✅ App shows "Focus Buddy isn't responding" (ANR) when rapidly switching ambient sounds | Done — 200 ms debounce via `SoundUpdateScheduler` ensures only the final selection triggers `Audio.Sound.createAsync`; run-ID stale detection aborts in-flight loads when superseded |
+| Stability | ✅ ANR crash on any session longer than ~3 minutes (Android 14+) | Done — Notifee's bundled AAR declares `foregroundServiceType="shortService"`, which Android enforces a ~3 min time limit on. A config plugin now overrides this to `mediaPlayback` in the merged manifest via `tools:replace` |
+
+---
+
 ### Field Test Fixes — 2026-05-05
 *Notes captured from real focus-session use. These are polish fixes before the next broad release.*
 
