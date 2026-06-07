@@ -12,7 +12,7 @@ A gamified Pomodoro timer for Android where a virtual companion evolves through 
 - **Evolving companion** — 5 custom PNG evolution stages (Egg → Hatchling → Baby → Teen → Adult) driven by XP and level
 - **Automatic Pomodoro loop** — break starts automatically after focus completes; long break triggers after every 4th session
 - **Post-session goal confirmation** — single-tap Done / Partial / No row in the reward modal when a task was set; outcome stored alongside session history
-- **Android live timer notification** — foreground service keeps a live countdown in the notification shade while the app is backgrounded; updates every second via notifee
+- **Android live timer notification** — a native Android chronometer keeps the countdown visible in the notification shade without recurring JavaScript updates
 - **Live focusing counter** — anonymous real-time count of active focus sessions via Supabase; shown on the home screen to motivate starting a session ("🌍 23 people focusing right now")
 - **Session history** — last 100 completed sessions stored; 7-day bar chart and recent list in Stats
 - **Daily focus goals** — configurable session and minute targets with progress on Home and Stats
@@ -169,7 +169,7 @@ npm test
 
 **Ambient audio** — `useAmbientSound` sets `playsInSilentModeIOS: true` and `staysActiveInBackground: true` on mount. It can run up to 2 ambient sound layers at once, balances combined volume with a simple mix gain, and uses 50ms fade ramps to avoid abrupt cuts. Playback sync uses a run guard so quick pause/resume taps cannot let a stale fade-out pause the sound after resume.
 
-**Android live timer notification** — `timerNotification.ts` runs a notifee foreground service that ticks every second, computing remaining time from the same wall-clock formula as the in-app timer (`activeDurationMs − (Date.now() − startTime − totalPausedMs)`). Timer state (status, startTime, totalPausedMs, pausedAt) travels via the notification's own `data` field — updated by the main thread on pause/resume, re-read by the service each tick. This keeps the service stateless and avoids any AsyncStorage round-trips on the hot path.
+**Android live timer notification** — `timerNotification.ts` calculates the remaining time from the same wall-clock formula as the in-app timer (`activeDurationMs − (Date.now() − startTime − totalPausedMs)`) and gives Android a native countdown timestamp. The notification is replaced only on explicit lifecycle changes such as start, pause, resume, extension, recovery, and stop, avoiding recurring JavaScript-to-native bridge calls.
 
 **Goal confirmation** — `RewardModal` replaces the Continue button with a Done / Partial / No row when a task was set.
 
@@ -230,7 +230,7 @@ Prioritised by impact and implementation effort. Each phase builds on the previo
 
 | # | Feature | Why |
 |---|---------|-----|
-| ✅ | ~~Android live timer notification~~ | Done — notifee foreground service shows live countdown in notification shade; updates every second even when app is backgrounded |
+| ✅ | ~~Android live timer notification~~ | Done — Android's native chronometer shows the live countdown without recurring JavaScript updates |
 | 10 | **Task list with Pomodoro estimates** | Create tasks, set estimated session count, link a task to each focus session. Time accumulates against the task. Your session tags are already halfway there |
 | 11 | **Lofi / relaxing music** | Add licensed local lofi loops or relaxing break music as sound options. Prefer bundled licensed tracks over an internet stream for reliability and licensing clarity |
 | 12 | **Companion customization shop** | Earn coins per completed session. Spend coins on companion accessories, background themes, and egg skins. Study Bunny's furniture/cosmetics system is their #1 retention driver — Focus Buddy's evolution system makes this a natural extension |

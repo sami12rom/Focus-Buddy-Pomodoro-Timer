@@ -35,6 +35,9 @@ import { useGoalStore } from '../../store/goalStore';
 import { useSocialStore } from '../../store/socialStore';
 import { getCompanionMessage } from '../../utils/companionDialogue';
 import { subscribeToFocusingCount, fetchFocusingCount } from '../../utils/activeSessionSync';
+import { scheduleSessionEndNotification } from '../../utils/notifications';
+import { startTimerNotification } from '../../utils/timerNotification';
+import { buildRecoveredSessionRuntime } from '../../utils/sessionLifecycle';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -171,8 +174,15 @@ export default function HomeScreen() {
   // ── Recovery handlers ─────────────────────────────────────────────────────
 
   function handleRecoveryResume() {
+    const snapshot = recoveryState?.snapshot;
+    if (!snapshot) return;
+    const runtime = buildRecoveredSessionRuntime(snapshot);
     setRecoveryState(null);
     resumeFromSnapshot();
+    if (runtime.shouldScheduleCompletion) {
+      void scheduleSessionEndNotification(runtime.remainingMs, snapshot.type);
+    }
+    void startTimerNotification(runtime.notification);
     router.push('/focus');
   }
 

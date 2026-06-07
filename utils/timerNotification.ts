@@ -16,6 +16,7 @@ try {
 const CHANNEL_ID = 'focus_timer';
 const NOTIF_ID = 'focus_timer_live';
 let resolveForegroundService: (() => void) | null = null;
+let notificationOperation = Promise.resolve();
 
 export type TimerNotifParams = {
   status: 'running' | 'paused';
@@ -67,6 +68,12 @@ async function setupChannel() {
   });
 }
 
+function enqueueNotificationOperation(operation: () => Promise<void>): Promise<void> {
+  const queued = notificationOperation.then(operation, operation);
+  notificationOperation = queued.catch(() => {});
+  return queued.catch(() => {});
+}
+
 function buildDisplayNotification(params: TimerNotifParams, remaining: number) {
   const isBreak = params.sessionType === 'break';
   const isPaused = params.status === 'paused';
@@ -114,25 +121,31 @@ export function registerTimerForegroundService() {
 
 export async function startTimerNotification(params: TimerNotifParams) {
   if (Platform.OS !== 'android' || !notifee) return;
-  await setupChannel();
-  const remaining = getRemainingMs(params);
-  await notifee.displayNotification(buildDisplayNotification(params, remaining));
+  return enqueueNotificationOperation(async () => {
+    await setupChannel();
+    const remaining = getRemainingMs(params);
+    await notifee.displayNotification(buildDisplayNotification(params, remaining));
+  });
 }
 
 // Call on pause or resume to replace the native countdown with the current state.
 export async function updateTimerNotification(params: TimerNotifParams) {
   if (Platform.OS !== 'android' || !notifee) return;
-  const remaining = getRemainingMs(params);
-  await notifee.displayNotification(buildDisplayNotification(params, remaining));
+  return enqueueNotificationOperation(async () => {
+    const remaining = getRemainingMs(params);
+    await notifee.displayNotification(buildDisplayNotification(params, remaining));
+  });
 }
 
 export async function stopTimerNotification() {
   if (Platform.OS !== 'android' || !notifee) return;
-  resolveForegroundService?.();
-  resolveForegroundService = null;
-  try {
-    await notifee.stopForegroundService();
-  } catch {
-    await notifee.cancelNotification(NOTIF_ID).catch(() => {});
-  }
+  return enqueueNotificationOperation(async () => {
+    resolveForegroundService?.();
+    resolveForegroundService = null;
+    try {
+      await notifee.stopForegroundService();
+    } catch {
+      await notifee.cancelNotification(NOTIF_ID).catch(() => {});
+    }
+  });
 }

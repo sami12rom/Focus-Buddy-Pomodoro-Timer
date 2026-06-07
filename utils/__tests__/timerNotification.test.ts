@@ -46,11 +46,19 @@ function runningParams(overrides: Partial<TimerNotifParams> = {}): TimerNotifPar
   };
 }
 
+async function flushMicrotasks() {
+  for (let index = 0; index < 20; index += 1) {
+    await Promise.resolve();
+  }
+}
+
 describe('timerNotification foreground service', () => {
   beforeEach(() => {
     jest.useFakeTimers();
     jest.setSystemTime(NOW);
     jest.clearAllMocks();
+    mockNotifee.displayNotification.mockResolvedValue('focus_timer_live');
+    mockNotifee.stopForegroundService.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -146,6 +154,54 @@ describe('timerNotification foreground service', () => {
     jest.advanceTimersByTime(10 * 60_000);
 
     expect(mockNotifee.displayNotification).toHaveBeenCalledTimes(3);
+  });
+
+  it('serializes start, pause, resume, extend, and stop so stop is the final operation', async () => {
+    let releaseStart = () => {};
+    mockNotifee.displayNotification.mockImplementationOnce(
+      () =>
+        new Promise<string>((resolve) => {
+          releaseStart = () => resolve('focus_timer_live');
+        }),
+    );
+
+    const start = startTimerNotification(runningParams());
+    await flushMicrotasks();
+    expect(mockNotifee.displayNotification).toHaveBeenCalledTimes(1);
+
+    const pause = updateTimerNotification(
+      runningParams({
+        status: 'paused',
+        pausedAt: NOW,
+      }),
+    );
+    const resume = updateTimerNotification(runningParams());
+    const extend = updateTimerNotification(
+      runningParams({
+        activeDurationMs: 35_000,
+      }),
+    );
+    const stop = stopTimerNotification();
+
+    await flushMicrotasks();
+    expect(mockNotifee.displayNotification).toHaveBeenCalledTimes(1);
+    expect(mockNotifee.stopForegroundService).not.toHaveBeenCalled();
+
+    releaseStart();
+    await Promise.all([start, pause, resume, extend, stop]);
+
+    expect(
+      mockNotifee.displayNotification.mock.calls.map(
+        ([notification]) => notification.data?.status,
+      ),
+    ).toEqual(['running', 'paused', 'running', 'running']);
+    expect(
+      mockNotifee.displayNotification.mock.calls[3][0].android?.timestamp,
+    ).toBe(NOW + 30_000);
+    expect(mockNotifee.stopForegroundService).toHaveBeenCalledTimes(1);
+    expect(mockNotifee.stopForegroundService.mock.invocationCallOrder[0]).toBeGreaterThan(
+      mockNotifee.displayNotification.mock.invocationCallOrder[3],
+    );
   });
 
   it('stops the foreground service explicitly', async () => {

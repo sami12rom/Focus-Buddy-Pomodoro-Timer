@@ -55,6 +55,7 @@ import {
   stopTimerNotification,
 } from '../utils/timerNotification';
 import { syncSessionStart, syncSessionEnd } from '../utils/activeSessionSync';
+import { runSessionExitCleanup } from '../utils/sessionLifecycle';
 import { getAchievements } from '../utils/achievements';
 import * as Haptics from 'expo-haptics';
 import * as StoreReview from 'expo-store-review';
@@ -83,7 +84,7 @@ export default function TimerScreen() {
     startFocus, pauseFocus, resumeFocus,
     startBreak, pauseBreak, resumeBreak,
     interactDuringBreak, breakInteracted,
-    selectedFocusMinutes, selectedBreakMinutes, activeDurationMs, currentTag,
+    selectedFocusMinutes, selectedBreakMinutes, activeDurationMs, currentTask, currentTag,
     setFocusMinutes, setBreakMinutes, setCurrentTask, setCurrentTag, extendFocusByMinutes,
     isCurrentBreakLong,
     incrementCycle, resetCycle, clearSnapshot,
@@ -96,7 +97,7 @@ export default function TimerScreen() {
   const { soundEnabled, hapticsEnabled, keepAwakeEnabled, autoStartBreak, ambientSounds, toggleAmbientSound } = useSettingsStore();
   const parkingLotItemCount = useParkingLotStore((state) => state.items.length);
 
-  const [taskInput, setTaskInput] = useState('');
+  const [taskInput, setTaskInput] = useState(currentTask);
   const [rewardResult, setRewardResult] = useState<FocusRewardResult | null>(null);
   const [showReward, setShowReward] = useState(false);
   const [showBreakEnd, setShowBreakEnd] = useState(false);
@@ -155,7 +156,6 @@ export default function TimerScreen() {
   useFocusEffect(
     useCallback(() => {
       ScreenOrientation.unlockAsync();
-      if (isBreakRunning) reset();
       return () => {
         ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
       };
@@ -169,9 +169,11 @@ export default function TimerScreen() {
     setShowParkingLot(false);
     extensionPromptShownRef.current = false;
     deactivateKeepAwake();
-    cancelScheduledNotification();
-    void stopTimerNotification();
-    void syncSessionEnd();
+    void runSessionExitCleanup('focus-complete', {
+      cancelScheduledNotification,
+      stopTimerNotification,
+      syncSessionEnd,
+    });
     if (soundEnabled) fireCompletionAlarm('focus');
     if (hapticsEnabled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
@@ -249,8 +251,11 @@ export default function TimerScreen() {
   const handleBreakComplete = useCallback(() => {
     setShowParkingLot(false);
     deactivateKeepAwake();
-    cancelScheduledNotification();
-    void stopTimerNotification();
+    void runSessionExitCleanup('break-complete', {
+      cancelScheduledNotification,
+      stopTimerNotification,
+      syncSessionEnd,
+    });
     if (soundEnabled) fireCompletionAlarm('break');
     if (hapticsEnabled) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     if (isCurrentBreakLong) {
@@ -367,15 +372,17 @@ export default function TimerScreen() {
 
   function handleCancelFocus() {
     deactivateKeepAwake();
-    cancelScheduledNotification();
     setShowFocusExtensionPrompt(false);
     setShowSoundPickerModal(false);
     setShowParkingLot(false);
     extensionPromptShownRef.current = false;
     reset();
     clearSnapshot();
-    void stopTimerNotification();
-    void syncSessionEnd();
+    void runSessionExitCleanup('focus-cancel', {
+      cancelScheduledNotification,
+      stopTimerNotification,
+      syncSessionEnd,
+    });
   }
 
   function handleExtendFocus(minutes: number) {
@@ -383,6 +390,16 @@ export default function TimerScreen() {
     extensionPromptShownRef.current = false;
     extendFocusByMinutes(minutes);
     scheduleSessionEndNotification(focusTimer.remainingMs + minutes * 60_000, 'focus');
+    const s = useSessionStore.getState();
+    void updateTimerNotification({
+      status: s.status === 'paused' ? 'paused' : 'running',
+      startTime: s.startTime!,
+      activeDurationMs: s.activeDurationMs!,
+      totalPausedMs: s.totalPausedMs,
+      pausedAt: s.pausedAt,
+      task: s.currentTask,
+      sessionType: 'focus',
+    });
   }
 
   function handleRewardDismiss() {
@@ -468,8 +485,11 @@ export default function TimerScreen() {
   function handleSkipBreak() {
     setShowParkingLot(false);
     deactivateKeepAwake();
-    cancelScheduledNotification();
-    void stopTimerNotification();
+    void runSessionExitCleanup('break-skip', {
+      cancelScheduledNotification,
+      stopTimerNotification,
+      syncSessionEnd,
+    });
     if (isCurrentBreakLong) resetCycle();
     setBreakWasSkipped(true);
     setShowBreakEnd(true);
