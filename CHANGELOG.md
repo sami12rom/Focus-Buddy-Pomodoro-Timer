@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.0.30 (2026-07-05)
+
+Fixes:
+• companion now grows to Baby stage much sooner
+
 All notable changes to Focus Buddy are documented here.
 
 This project follows a simple release-notes format:

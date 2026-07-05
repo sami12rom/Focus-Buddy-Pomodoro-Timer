@@ -1,1 +1,2 @@
-Bug fixes and improvements.
+Fixes:
+• companion now grows to Baby stage much sooner
