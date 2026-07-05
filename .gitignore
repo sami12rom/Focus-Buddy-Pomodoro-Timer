@@ -22,3 +22,5 @@ expo-env.d.ts
 
 CLAUDE.md
 AGENTS.md
+.claude
+graphify-out
