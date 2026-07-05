@@ -9,7 +9,7 @@ A gamified Pomodoro timer for Android where a virtual companion evolves through 
 ## Features
 
 - **Pomodoro timer** — configurable focus and break durations via preset chips and stepper controls
-- **Evolving companion** — 5 custom PNG evolution stages (Egg → Hatchling → Baby → Teen → Adult) driven by XP and level
+- **Evolving companion** — 5 custom PNG evolution stages (Egg → Hatchling → Baby → Teen → Adult) driven by XP and level; faster early pacing means Baby unlocks after 10 completed sessions instead of 28
 - **Automatic Pomodoro loop** — break starts automatically after focus completes; long break triggers after every 4th session
 - **Post-session goal confirmation** — single-tap Done / Partial / No row in the reward modal when a task was set; outcome stored alongside session history
 - **Android live timer notification** — a native Android chronometer keeps the countdown visible in the notification shade without recurring JavaScript updates

@@ -147,23 +147,37 @@ export const useCompanionStore = create<CompanionState & CompanionActions>()(
     {
       name: 'companion-store',
       storage: createJSONStorage(() => AsyncStorage),
-      version: 1,
+      version: 2,
       migrate: (persisted: unknown, fromVersion: number) => {
         const base = (persisted ?? {}) as Partial<CompanionState>;
-        if (fromVersion < 1) {
-          return {
+        const migrated = fromVersion < 1
+          ? {
             ...initialState,
             ...base,
             lastPetDate: base.lastPetDate ?? null,
             petDates: base.petDates ?? (base.lastPetDate ? [base.lastPetDate] : []),
             lastDecayDate: base.lastDecayDate ?? null,
+          }
+          : {
+            ...initialState,
+            ...base,
+            petDates: base.petDates ?? (base.lastPetDate ? [base.lastPetDate] : []),
+          };
+
+        if (fromVersion < 2) {
+          const migratedXP = typeof base.xp === 'number' && Number.isFinite(base.xp)
+            ? Math.max(0, base.xp)
+            : initialState.xp;
+          const migratedLevel = getLevelForXP(migratedXP);
+          return {
+            ...migrated,
+            xp: migratedXP,
+            level: migratedLevel,
+            evolutionStage: getEvolutionStage(migratedLevel),
           };
         }
-        return {
-          ...initialState,
-          ...base,
-          petDates: base.petDates ?? (base.lastPetDate ? [base.lastPetDate] : []),
-        };
+
+        return migrated;
       },
       onRehydrateStorage: () => (state) => {
         if (state) state.isHydrated = true;

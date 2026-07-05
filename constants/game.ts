@@ -13,7 +13,7 @@ export const LEVEL_XP_THRESHOLDS = [0, 100, 250, 500, 900, 1400, 2000, 2700, 350
 export const EVOLUTION_THRESHOLDS: Record<number, number> = {
   1: 1,
   2: 3,
-  3: 6,
+  3: 4,
   4: 10,
   5: 15,
 };

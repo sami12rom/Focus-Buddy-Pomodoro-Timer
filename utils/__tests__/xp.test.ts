@@ -5,10 +5,10 @@ import {
   getEvolutionStage,
   isMaxLevel,
 } from '../xp';
-import { LEVEL_XP_THRESHOLDS } from '../../constants/game';
+import { LEVEL_XP_THRESHOLDS, XP_PER_SESSION } from '../../constants/game';
 
 // LEVEL_XP_THRESHOLDS = [0, 100, 250, 500, 900, 1400, 2000, 2700, 3500, 4400, 5400]
-// EVOLUTION_THRESHOLDS = { 1:1, 2:3, 3:6, 4:10, 5:15 }
+// EVOLUTION_THRESHOLDS = { 1:1, 2:3, 3:4, 4:10, 5:15 }
 
 describe('getLevelForXP', () => {
   it('returns level 1 at 0 XP', () => {
@@ -86,8 +86,14 @@ describe('getEvolutionStage', () => {
     expect(getEvolutionStage(3)).toBe(2);
   });
 
-  it('returns stage 3 at level 6 (Child)', () => {
-    expect(getEvolutionStage(6)).toBe(3);
+  it('keeps the buddy at stage 2 after 9 completed sessions', () => {
+    const levelAfterNineSessions = getLevelForXP(9 * XP_PER_SESSION);
+    expect(getEvolutionStage(levelAfterNineSessions)).toBe(2);
+  });
+
+  it('returns stage 3 after exactly 10 completed sessions', () => {
+    const levelAfterTenSessions = getLevelForXP(10 * XP_PER_SESSION);
+    expect(getEvolutionStage(levelAfterTenSessions)).toBe(3);
   });
 
   it('returns stage 4 at level 10 (Teen)', () => {
@@ -103,9 +109,8 @@ describe('getEvolutionStage', () => {
     expect(getEvolutionStage(100)).toBe(5);
   });
 
-  it('returns stage 2 for levels 3–5', () => {
-    expect(getEvolutionStage(4)).toBe(2);
-    expect(getEvolutionStage(5)).toBe(2);
+  it('returns stage 2 at level 3', () => {
+    expect(getEvolutionStage(3)).toBe(2);
   });
 });
 
